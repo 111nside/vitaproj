@@ -1,0 +1,195 @@
+name: Build unsigned iOS IPA
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - ios-port
+    paths:
+      - "CMakeLists.txt"
+      - "ios/**"
+      - "vita3k/packages/**"
+      - "external/miniz/**"
+      - ".ci/package-ios.sh"
+      - ".github/workflows/ios.yml"
+  pull_request:
+    paths:
+      - "CMakeLists.txt"
+      - "ios/**"
+      - "vita3k/packages/**"
+      - "external/miniz/**"
+      - ".ci/package-ios.sh"
+      - ".github/workflows/ios.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ios-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  vitasdk-fixture:
+    name: Real VitaSDK fixture
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+
+      - name: Build with pinned official VitaSDK image
+        run: |
+          docker run --rm \
+            -v "${GITHUB_WORKSPACE}:/workspace" \
+            -w /workspace/ios/fixtures/vitasdk-milestone10 \
+            vitasdk/vitasdk@sha256:d9bac0c5d9509dbb0082a077a73b1da4c821dcbe12d8805dced6c1e08334de2f \
+            sh -lc '
+              set -eu
+              cmake -S . -B build -DCMAKE_BUILD_TYPE=MinSizeRel
+              cmake --build build --parallel
+              find build -maxdepth 2 -type f -print | sort
+            '
+
+      - name: Stage VitaSDK outputs
+        run: |
+          mkdir -p vitasdk-artifacts
+          cp ios/fixtures/vitasdk-milestone10/build/milestone10-vitasdk-homebrew.velf \
+            vitasdk-artifacts/milestone10-vitasdk-homebrew.velf
+          cp ios/fixtures/vitasdk-milestone10/build/milestone10-vitasdk-homebrew.self \
+            vitasdk-artifacts/milestone10-vitasdk-homebrew.self
+
+      - name: Upload internal VitaSDK fixture
+        uses: actions/upload-artifact@v4
+        with:
+          name: milestone10-vitasdk-fixture
+          path: vitasdk-artifacts/
+          if-no-files-found: error
+          retention-days: 1
+
+  unsigned-ipa:
+    name: Unsigned arm64 device IPA
+    needs: vitasdk-fixture
+    runs-on: macos-15
+    timeout-minutes: 30
+
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+          submodules: false
+
+      - name: Download real VitaSDK fixture
+        uses: actions/download-artifact@v4
+        with:
+          name: milestone10-vitasdk-fixture
+          path: artifacts
+
+      - name: Show Apple toolchain
+        run: |
+          xcodebuild -version
+          xcrun --sdk iphoneos --show-sdk-version
+          cmake --version
+
+      - name: Run portable core, display, and input smoke tests
+        run: |
+          cmake -S ios/core -B build-core-tests -DCMAKE_BUILD_TYPE=Release
+          cmake --build build-core-tests --parallel
+          ctest --test-dir build-core-tests --output-on-failure
+          mkdir -p artifacts
+          ./build-core-tests/vita3k_ios_core_smoke_tests \
+            --emit-fixture artifacts/milestone9-thumb-homebrew.elf \
+            --emit-sfo-fixture artifacts/milestone13-synthetic-param.sfo \
+            --emit-vpk-fixture artifacts/milestone14-synthetic-app.vpk \
+            --emit-install-zip-fixture artifacts/milestone15-app-and-patch.zip \
+            --emit-self-fixture artifacts/milestone16-plain-self-eboot.bin \
+            --emit-m16-install-zip-fixture artifacts/milestone16-app-and-patch.zip \
+            --emit-m18-install-zip-fixture artifacts/milestone18-lifecycle-export.zip \
+            --emit-m19-install-zip-fixture artifacts/milestone19-thumb2-wide-push.zip \
+            --emit-m20-install-zip-fixture artifacts/milestone20-thumb-compiler-baseline.zip \
+            --emit-m21-install-zip-fixture artifacts/milestone21-thumb2-compiler-batch.zip \
+            --emit-m22-install-zip-fixture artifacts/milestone22-inline-hle-diagnostic.zip \
+            --emit-m23-install-zip-fixture artifacts/milestone23-libc-dso-runtime.zip \
+            --emit-m24-install-zip-fixture artifacts/milestone24-thumb2-runtime-families.zip \
+            --emit-m25-install-zip-fixture artifacts/milestone25-thumb2-register-families.zip \
+            --emit-m26-install-zip-fixture artifacts/milestone26-libc-termination.zip \
+            --emit-m27-install-zip-fixture artifacts/milestone27-thumb2-multiple-transfer.zip \
+            --emit-m28-install-zip-fixture artifacts/milestone28-cxa-guards.zip \
+            --emit-m29-install-zip-fixture artifacts/milestone29-libc-heap.zip \
+            --emit-m30-install-zip-fixture artifacts/milestone30-thumb2-lr-shifted-register.zip \
+            --emit-m31-install-zip-fixture artifacts/milestone31-execution-progress.zip \
+            --emit-m32-install-zip-fixture artifacts/milestone32-cxx-allocation.zip \
+            --emit-m33-install-zip-fixture artifacts/milestone33-app-util-lifecycle.zip \
+            --emit-m34-install-zip-fixture artifacts/milestone34-sysmodule-lifecycle.zip \
+            --emit-m35-install-zip-fixture artifacts/milestone35-np-lifecycle.zip \
+            --emit-m36-install-zip-fixture artifacts/milestone36-trophy-objects.zip \
+            --emit-m37-install-zip-fixture artifacts/milestone37-controller-hle.zip \
+            --emit-m38-install-zip-fixture artifacts/milestone38-startup-services.zip \
+            --verify-vitasdk artifacts/milestone10-vitasdk-homebrew.velf
+
+      - name: Configure iOS application and core target
+        run: |
+          cmake -S . -B build-ios -G Xcode \
+            -DCMAKE_SYSTEM_NAME=iOS \
+            -DCMAKE_OSX_SYSROOT=iphoneos \
+            -DCMAKE_OSX_ARCHITECTURES=arm64 \
+            -DVITA3K_BUILD_IOS=ON \
+            -DVITA3K_IOS_DEPLOYMENT_TARGET=26.0 \
+            -DVITA3K_IOS_LINK_CORE=ON
+
+      - name: Build unsigned device application
+        run: |
+          cmake --build build-ios \
+            --config Release \
+            --target Vita3KiOS \
+            -- \
+            -sdk iphoneos \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO
+
+      - name: Package and verify unsigned IPA
+        id: package
+        run: |
+          bash ./.ci/package-ios.sh \
+            --build-dir build-ios \
+            --configuration Release \
+            --output artifacts/Vita3K-iOS-unsigned.ipa
+
+      - name: Upload unsigned IPA
+        uses: actions/upload-artifact@v4
+        with:
+          name: Vita3K-iOS-${{ github.sha }}-unsigned
+          path: |
+            artifacts/Vita3K-iOS-unsigned.ipa
+            artifacts/milestone9-thumb-homebrew.elf
+            artifacts/milestone10-vitasdk-homebrew.velf
+            artifacts/milestone10-vitasdk-homebrew.self
+            artifacts/milestone13-synthetic-param.sfo
+            artifacts/milestone14-synthetic-app.vpk
+            artifacts/milestone15-app-and-patch.zip
+            artifacts/milestone16-plain-self-eboot.bin
+            artifacts/milestone16-app-and-patch.zip
+            artifacts/milestone18-lifecycle-export.zip
+            artifacts/milestone19-thumb2-wide-push.zip
+            artifacts/milestone20-thumb-compiler-baseline.zip
+            artifacts/milestone21-thumb2-compiler-batch.zip
+            artifacts/milestone22-inline-hle-diagnostic.zip
+            artifacts/milestone23-libc-dso-runtime.zip
+            artifacts/milestone24-thumb2-runtime-families.zip
+            artifacts/milestone25-thumb2-register-families.zip
+            artifacts/milestone26-libc-termination.zip
+            artifacts/milestone27-thumb2-multiple-transfer.zip
+            artifacts/milestone28-cxa-guards.zip
+            artifacts/milestone29-libc-heap.zip
+            artifacts/milestone30-thumb2-lr-shifted-register.zip
+            artifacts/milestone31-execution-progress.zip
+            artifacts/milestone32-cxx-allocation.zip
+            artifacts/milestone33-app-util-lifecycle.zip
+            artifacts/milestone34-sysmodule-lifecycle.zip
+            artifacts/milestone35-np-lifecycle.zip
+            artifacts/milestone36-trophy-objects.zip
+            artifacts/milestone37-controller-hle.zip
+            artifacts/milestone38-startup-services.zip
+          if-no-files-found: error
+          retention-days: 14
