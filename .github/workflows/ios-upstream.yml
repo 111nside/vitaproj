@@ -60,19 +60,20 @@ jobs:
           xcode_ver="$(xcodebuild -version | head -1 | tr ' ' '-')"
           echo "XCODE_VER=${xcode_ver}" >> "$GITHUB_ENV"
 
-      - name: Apply iOS submodule patches
+      - name: Apply iOS Dynarmic patches
         run: |
-          # dynarmic/oaknut is a nested submodule; CI restores its pinned
-          # commit, so iOS-specific fixes live as patches applied here.
-          git -C external/dynarmic apply --verbose \
+          # This repository vendors the former submodule contents directly.
+          # Apply the upstream Dynarmic patch from the superproject root and
+          # prepend the vendored dependency path.
+          git apply --verbose --directory=external/dynarmic \
             "${GITHUB_WORKSPACE}/ios/patches/0001-oaknut-ios-rwx-jit.patch"
-          git -C external/dynarmic diff --check
-          git -C external/dynarmic diff --name-only | grep -Fx \
-            "externals/oaknut/include/oaknut/code_block.hpp"
-          git -C external/dynarmic diff --name-only | grep -Fx \
-            "src/dynarmic/backend/arm64/address_space.cpp"
-          git -C external/dynarmic diff --name-only | grep -Fx \
-            "src/dynarmic/common/spin_lock_arm64.cpp"
+          git diff --check -- external/dynarmic
+          git diff --name-only -- external/dynarmic | grep -Fx \
+            "external/dynarmic/externals/oaknut/include/oaknut/code_block.hpp"
+          git diff --name-only -- external/dynarmic | grep -Fx \
+            "external/dynarmic/src/dynarmic/backend/arm64/address_space.cpp"
+          git diff --name-only -- external/dynarmic | grep -Fx \
+            "external/dynarmic/src/dynarmic/common/spin_lock_arm64.cpp"
 
       - name: Show Apple toolchain
         run: |
