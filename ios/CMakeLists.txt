@@ -81,9 +81,17 @@ if(VITA3K_BUILD_IOS_UPSTREAM_CORE)
     #     Objective-C++ side imports has a stable name ("Tsubomi-Swift.h").
     #     Left to default it would be derived from OUTPUT_NAME ("Vita3K-iOS")
     #     with the hyphen mangled to an underscore.
+    # For the dynamic framework the Swift module MUST equal its Clang module
+    # (Vita3KManicRuntime); otherwise Swift's -import-underlying-module fails
+    # with "unable to resolve module dependency: Tsubomi".
+    if(VITA3K_BUILD_MANIC_EMBEDDED)
+        set(VITA3K_IOS_SWIFT_MODULE_NAME "Vita3KManicRuntime")
+    else()
+        set(VITA3K_IOS_SWIFT_MODULE_NAME "Tsubomi")
+    endif()
     set_target_properties(${VITA3K_IOS_TARGET} PROPERTIES
         XCODE_ATTRIBUTE_SWIFT_VERSION "5.0"
-        XCODE_ATTRIBUTE_PRODUCT_MODULE_NAME "Tsubomi"
+        XCODE_ATTRIBUTE_PRODUCT_MODULE_NAME "${VITA3K_IOS_SWIFT_MODULE_NAME}"
         XCODE_ATTRIBUTE_SWIFT_OBJC_BRIDGING_HEADER
             "$<IF:$<BOOL:${VITA3K_BUILD_MANIC_EMBEDDED}>,,${CMAKE_CURRENT_SOURCE_DIR}/src/Swift/Tsubomi-Bridging-Header.h>"
         XCODE_ATTRIBUTE_SWIFT_OPTIMIZATION_LEVEL[variant=Release] "-O"
