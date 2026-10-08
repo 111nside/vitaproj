@@ -44,11 +44,12 @@ if(VITA3K_BUILD_IOS_UPSTREAM_CORE)
             src/ManicRuntime.cpp
             include/vita3k_ios/ManicRuntime.h
             include/vita3k_ios/Vita3KManicRuntime.h
+            include/vita3k_ios/Tsubomi.h
             include/vita3k_ios/TsubomiBridge.h)
         set(VITA3K_IOS_TARGET Vita3KManicRuntime)
         set_target_properties(Vita3KManicRuntime PROPERTIES
             FRAMEWORK TRUE
-            PUBLIC_HEADER "${CMAKE_CURRENT_SOURCE_DIR}/include/vita3k_ios/Vita3KManicRuntime.h;${CMAKE_CURRENT_SOURCE_DIR}/include/vita3k_ios/ManicRuntime.h;${CMAKE_CURRENT_SOURCE_DIR}/include/vita3k_ios/TsubomiBridge.h"
+            PUBLIC_HEADER "${CMAKE_CURRENT_SOURCE_DIR}/include/vita3k_ios/Tsubomi.h;${CMAKE_CURRENT_SOURCE_DIR}/include/vita3k_ios/Vita3KManicRuntime.h;${CMAKE_CURRENT_SOURCE_DIR}/include/vita3k_ios/ManicRuntime.h;${CMAKE_CURRENT_SOURCE_DIR}/include/vita3k_ios/TsubomiBridge.h"
             XCODE_ATTRIBUTE_DEFINES_MODULE YES
             XCODE_ATTRIBUTE_SWIFT_OBJC_BRIDGING_HEADER ""
             XCODE_ATTRIBUTE_SWIFT_INSTALL_OBJC_HEADER YES)
