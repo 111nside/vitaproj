@@ -42,12 +42,16 @@ if(VITA3K_BUILD_IOS_UPSTREAM_CORE)
             COMPILE_DEFINITIONS "SDL_MAIN_HANDLED=1;main=vita3k_manic_embedded_entry")
         add_library(Vita3KManicRuntime SHARED ${VITA3K_IOS_FRONTEND_SOURCES}
             src/ManicRuntime.cpp
-            include/vita3k_ios/ManicRuntime.h)
+            include/vita3k_ios/ManicRuntime.h
+            include/vita3k_ios/Vita3KManicRuntime.h
+            include/vita3k_ios/TsubomiBridge.h)
         set(VITA3K_IOS_TARGET Vita3KManicRuntime)
         set_target_properties(Vita3KManicRuntime PROPERTIES
             FRAMEWORK TRUE
-            PUBLIC_HEADER "${CMAKE_CURRENT_SOURCE_DIR}/include/vita3k_ios/ManicRuntime.h"
-            XCODE_ATTRIBUTE_DEFINES_MODULE YES)
+            PUBLIC_HEADER "${CMAKE_CURRENT_SOURCE_DIR}/include/vita3k_ios/Vita3KManicRuntime.h;${CMAKE_CURRENT_SOURCE_DIR}/include/vita3k_ios/ManicRuntime.h;${CMAKE_CURRENT_SOURCE_DIR}/include/vita3k_ios/TsubomiBridge.h"
+            XCODE_ATTRIBUTE_DEFINES_MODULE YES
+            XCODE_ATTRIBUTE_SWIFT_OBJC_BRIDGING_HEADER ""
+            XCODE_ATTRIBUTE_SWIFT_INSTALL_OBJC_HEADER YES)
         target_compile_definitions(Vita3KManicRuntime PRIVATE VITA3K_MANIC_EMBEDDED=1)
     else()
         add_executable(Vita3KiOS MACOSX_BUNDLE ${VITA3K_IOS_FRONTEND_SOURCES})
@@ -80,7 +84,7 @@ if(VITA3K_BUILD_IOS_UPSTREAM_CORE)
         XCODE_ATTRIBUTE_SWIFT_VERSION "5.0"
         XCODE_ATTRIBUTE_PRODUCT_MODULE_NAME "Tsubomi"
         XCODE_ATTRIBUTE_SWIFT_OBJC_BRIDGING_HEADER
-            "${CMAKE_CURRENT_SOURCE_DIR}/src/Swift/Tsubomi-Bridging-Header.h"
+            "$<IF:$<BOOL:${VITA3K_BUILD_MANIC_EMBEDDED}>,,${CMAKE_CURRENT_SOURCE_DIR}/src/Swift/Tsubomi-Bridging-Header.h>"
         XCODE_ATTRIBUTE_SWIFT_OPTIMIZATION_LEVEL[variant=Release] "-O"
         XCODE_ATTRIBUTE_SWIFT_OPTIMIZATION_LEVEL[variant=Debug] "-Onone"
         # Whole-module in Release lets the optimizer specialize across files,
