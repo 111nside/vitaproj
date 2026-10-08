@@ -2,6 +2,10 @@ cmake_minimum_required(VERSION 3.22)
 
 option(VITA3K_BUILD_IOS "Build the experimental iOS bootstrap application" OFF)
 option(VITA3K_BUILD_IOS_UPSTREAM_CORE "Build the upstream Vita3K core for iOS" OFF)
+option(VITA3K_BUILD_MANIC_EMBEDDED "Build the Vita3K runtime as an embeddable iOS framework" OFF)
+if(VITA3K_BUILD_MANIC_EMBEDDED AND NOT VITA3K_BUILD_IOS_UPSTREAM_CORE)
+	message(FATAL_ERROR "The Manic embedded runtime requires VITA3K_BUILD_IOS_UPSTREAM_CORE=ON.")
+endif()
 
 if(VITA3K_BUILD_IOS_UPSTREAM_CORE)
 	if(NOT CMAKE_SYSTEM_NAME STREQUAL "iOS")
