@@ -32,7 +32,11 @@
 // the name comes from PRODUCT_MODULE_NAME, pinned to "Tsubomi" in
 // ios/CMakeLists.txt. This is how the remaining Objective-C++ screens reach
 // the migrated SwiftUI ones.
+#if defined(VITA3K_MANIC_EMBEDDED)
+#import "Vita3KManicRuntime-Swift.h"
+#else
 #import "Tsubomi-Swift.h"
+#endif
 
 // The visible library is installed directly on the window instead of inside
 // SDL's root controller. The presentation hook needs this reference so home
