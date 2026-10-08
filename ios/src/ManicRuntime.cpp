@@ -4,6 +4,10 @@
 // UpstreamMain.cpp's standalone main() is compiled by CMake with a per-source
 // symbol rename ONLY for the embedded target. No second UIApplicationMain or
 // SDL_main entrypoint is linked into Manic.
+// This file lives inside Manic's existing UIApplication. Prevent SDL_main.h
+// from generating a second native main() shim that references SDL_main.
+// The standalone Tsubomi entrypoint continues to use SDL's normal startup.
+#define SDL_MAIN_HANDLED 1
 #include <vita3k_ios/ManicRuntime.h>
 #include <SDL3/SDL.h>
 #include <SDL3/SDL_main.h>
