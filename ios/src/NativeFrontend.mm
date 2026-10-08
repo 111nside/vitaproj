@@ -33,7 +33,7 @@
 // ios/CMakeLists.txt. This is how the remaining Objective-C++ screens reach
 // the migrated SwiftUI ones.
 #if defined(VITA3K_MANIC_EMBEDDED)
-#import "Vita3KManicRuntime-Swift.h"
+#import <Vita3KManicRuntime/Vita3KManicRuntime-Swift.h>
 #else
 #import "Tsubomi-Swift.h"
 #endif
