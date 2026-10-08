@@ -14,7 +14,7 @@
 // options and the performance readout are all SwiftUI now; this file is the
 // SDL side of the virtual joystick plus the plumbing that presents them.
 #if defined(VITA3K_MANIC_EMBEDDED)
-#import "Vita3KManicRuntime-Swift.h"
+#import <Vita3KManicRuntime/Vita3KManicRuntime-Swift.h>
 #else
 #import "Tsubomi-Swift.h"
 #endif
