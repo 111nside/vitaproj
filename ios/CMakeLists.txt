@@ -23,7 +23,7 @@ if(VITA3K_BUILD_IOS_UPSTREAM_CORE)
         "${CMAKE_CURRENT_SOURCE_DIR}/src/Swift/*.swift")
     set(VITA3K_IOS_CUELUME_LICENSE
         "${CMAKE_CURRENT_SOURCE_DIR}/third_party/cuelume-LICENSE.txt")
-    add_executable(Vita3KiOS MACOSX_BUNDLE
+    set(VITA3K_IOS_FRONTEND_SOURCES
         src/NativeFrontend.mm
         src/TsubomiBridge.mm
         src/UpstreamMain.cpp
@@ -32,20 +32,36 @@ if(VITA3K_BUILD_IOS_UPSTREAM_CORE)
         ${VITA3K_IOS_CUELUME_LICENSE}
         ${CMAKE_CURRENT_SOURCE_DIR}/Assets.xcassets
     )
+    if(VITA3K_BUILD_MANIC_EMBEDDED)
+        # Build as a real linked dynamic framework; do not bring SDL_main's UIApplication
+        # entrypoint into the existing Manic application. The same game/session
+        # implementation is compiled with a callable C entrypoint instead.
+        add_library(Vita3KManicRuntime SHARED ${VITA3K_IOS_FRONTEND_SOURCES}
+            include/vita3k_ios/ManicRuntime.h)
+        set(VITA3K_IOS_TARGET Vita3KManicRuntime)
+        set_target_properties(Vita3KManicRuntime PROPERTIES
+            FRAMEWORK TRUE
+            PUBLIC_HEADER "${CMAKE_CURRENT_SOURCE_DIR}/include/vita3k_ios/ManicRuntime.h"
+            XCODE_ATTRIBUTE_DEFINES_MODULE YES)
+        target_compile_definitions(Vita3KManicRuntime PRIVATE VITA3K_MANIC_EMBEDDED=1)
+    else()
+        add_executable(Vita3KiOS MACOSX_BUNDLE ${VITA3K_IOS_FRONTEND_SOURCES})
+        set(VITA3K_IOS_TARGET Vita3KiOS)
+    endif()
     # Compile the app-icon asset catalog (Xcode generator runs actool) so the
     # Tsubomi flower is the home-screen icon.
     set_source_files_properties(${CMAKE_CURRENT_SOURCE_DIR}/Assets.xcassets
         PROPERTIES MACOSX_PACKAGE_LOCATION Resources)
     set_source_files_properties(${VITA3K_IOS_CUELUME_LICENSE}
         PROPERTIES MACOSX_PACKAGE_LOCATION "Resources/Licenses")
-    target_include_directories(Vita3KiOS PRIVATE include)
-    target_compile_features(Vita3KiOS PRIVATE cxx_std_23)
+    target_include_directories(${VITA3K_IOS_TARGET} PRIVATE include)
+    target_compile_features(${VITA3K_IOS_TARGET} PRIVATE cxx_std_23)
     # -Wall/-Wextra are C-family flags; passing them to swiftc is an error, so
     # scope them to the languages that understand them.
-    target_compile_options(Vita3KiOS PRIVATE
+    target_compile_options(${VITA3K_IOS_TARGET} PRIVATE
         $<$<COMPILE_LANGUAGE:C,CXX,OBJC,OBJCXX>:-Wall>
         $<$<COMPILE_LANGUAGE:C,CXX,OBJC,OBJCXX>:-Wextra>)
-    target_compile_definitions(Vita3KiOS PRIVATE VITA3K_IOS_UPSTREAM_CORE=1)
+    target_compile_definitions(${VITA3K_IOS_TARGET} PRIVATE VITA3K_IOS_UPSTREAM_CORE=1)
     # Swift <-> Objective-C bridging.
     #   * The bridging header is what Swift sees: it exposes ONLY
     #     TsubomiBridge.h, a pure Objective-C facade. Swift deliberately does
@@ -55,7 +71,7 @@ if(VITA3K_BUILD_IOS_UPSTREAM_CORE)
     #     Objective-C++ side imports has a stable name ("Tsubomi-Swift.h").
     #     Left to default it would be derived from OUTPUT_NAME ("Vita3K-iOS")
     #     with the hyphen mangled to an underscore.
-    set_target_properties(Vita3KiOS PROPERTIES
+    set_target_properties(${VITA3K_IOS_TARGET} PROPERTIES
         XCODE_ATTRIBUTE_SWIFT_VERSION "5.0"
         XCODE_ATTRIBUTE_PRODUCT_MODULE_NAME "Tsubomi"
         XCODE_ATTRIBUTE_SWIFT_OBJC_BRIDGING_HEADER
@@ -65,7 +81,7 @@ if(VITA3K_BUILD_IOS_UPSTREAM_CORE)
         # Whole-module in Release lets the optimizer specialize across files,
         # which matters for SwiftUI view bodies.
         XCODE_ATTRIBUTE_SWIFT_COMPILATION_MODE[variant=Release] "wholemodule")
-    target_link_libraries(Vita3KiOS PRIVATE
+    target_link_libraries(${VITA3K_IOS_TARGET} PRIVATE
         vita3k
         audio
         io
@@ -85,10 +101,10 @@ if(VITA3K_BUILD_IOS_UPSTREAM_CORE)
     )
     # The renderer loads its screen-filter SPIR-V from
     # <static assets>/shaders-builtin at runtime; ship it inside the bundle.
-    add_custom_command(TARGET Vita3KiOS POST_BUILD
+    add_custom_command(TARGET ${VITA3K_IOS_TARGET} POST_BUILD
         COMMAND ${CMAKE_COMMAND} -E copy_directory
             "${CMAKE_SOURCE_DIR}/vita3k/shaders-builtin"
-            "$<TARGET_BUNDLE_CONTENT_DIR:Vita3KiOS>/shaders-builtin")
+            "$<TARGET_BUNDLE_CONTENT_DIR:${VITA3K_IOS_TARGET}>/shaders-builtin")
 else()
     add_subdirectory(core)
 
@@ -120,14 +136,13 @@ else()
     )
 endif()
 
-if(VITA3K_BUILD_IOS_UPSTREAM_CORE)
-    set_target_properties(Vita3KiOS PROPERTIES
+if(VITA3K_BUILD_IOS_UPSTREAM_CORE AND NOT VITA3K_BUILD_MANIC_EMBEDDED)
+    set_target_properties(${VITA3K_IOS_TARGET} PROPERTIES
         XCODE_ATTRIBUTE_ASSETCATALOG_COMPILER_APPICON_NAME "AppIcon")
 endif()
 
-set_target_properties(Vita3KiOS PROPERTIES
-    OUTPUT_NAME "Vita3K-iOS"
-    MACOSX_BUNDLE_INFO_PLIST "${CMAKE_CURRENT_SOURCE_DIR}/Info.plist.in"
+set_target_properties(${VITA3K_IOS_TARGET} PROPERTIES
+    OUTPUT_NAME "$<IF:$<BOOL:${VITA3K_BUILD_MANIC_EMBEDDED}>,Vita3KManicRuntime,Vita3K-iOS>"
     XCODE_ATTRIBUTE_CODE_SIGNING_ALLOWED "NO"
     XCODE_ATTRIBUTE_CODE_SIGNING_REQUIRED "NO"
     XCODE_ATTRIBUTE_CODE_SIGN_IDENTITY ""
@@ -140,3 +155,8 @@ set_target_properties(Vita3KiOS PROPERTIES
     XCODE_ATTRIBUTE_SUPPORTS_MACCATALYST "NO"
     XCODE_ATTRIBUTE_TARGETED_DEVICE_FAMILY "1,2"
 )
+
+if(NOT VITA3K_BUILD_MANIC_EMBEDDED)
+    set_target_properties(${VITA3K_IOS_TARGET} PROPERTIES
+        MACOSX_BUNDLE_INFO_PLIST "${CMAKE_CURRENT_SOURCE_DIR}/Info.plist.in")
+endif()
