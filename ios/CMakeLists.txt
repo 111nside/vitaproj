@@ -36,7 +36,12 @@ if(VITA3K_BUILD_IOS_UPSTREAM_CORE)
         # Build as a real linked dynamic framework; do not bring SDL_main's UIApplication
         # entrypoint into the existing Manic application. The same game/session
         # implementation is compiled with a callable C entrypoint instead.
+        # Rename only the standalone entrypoint translation unit. SDL_MAIN_HANDLED
+        # prevents SDL3's iOS shim from exporting a second app entrypoint.
+        set_source_files_properties(src/UpstreamMain.cpp PROPERTIES
+            COMPILE_DEFINITIONS "SDL_MAIN_HANDLED=1;main=vita3k_manic_embedded_entry")
         add_library(Vita3KManicRuntime SHARED ${VITA3K_IOS_FRONTEND_SOURCES}
+            src/ManicRuntime.cpp
             include/vita3k_ios/ManicRuntime.h)
         set(VITA3K_IOS_TARGET Vita3KManicRuntime)
         set_target_properties(Vita3KManicRuntime PROPERTIES
@@ -141,8 +146,14 @@ if(VITA3K_BUILD_IOS_UPSTREAM_CORE AND NOT VITA3K_BUILD_MANIC_EMBEDDED)
         XCODE_ATTRIBUTE_ASSETCATALOG_COMPILER_APPICON_NAME "AppIcon")
 endif()
 
+if(VITA3K_BUILD_MANIC_EMBEDDED)
+    set(VITA3K_IOS_OUTPUT_NAME "Vita3KManicRuntime")
+else()
+    set(VITA3K_IOS_OUTPUT_NAME "Vita3K-iOS")
+endif()
+
 set_target_properties(${VITA3K_IOS_TARGET} PROPERTIES
-    OUTPUT_NAME "$<IF:$<BOOL:${VITA3K_BUILD_MANIC_EMBEDDED}>,Vita3KManicRuntime,Vita3K-iOS>"
+    OUTPUT_NAME "${VITA3K_IOS_OUTPUT_NAME}"
     XCODE_ATTRIBUTE_CODE_SIGNING_ALLOWED "NO"
     XCODE_ATTRIBUTE_CODE_SIGNING_REQUIRED "NO"
     XCODE_ATTRIBUTE_CODE_SIGN_IDENTITY ""
