@@ -13,7 +13,11 @@
 // The on-screen controller, its layout editor, the in-game menu, the controller
 // options and the performance readout are all SwiftUI now; this file is the
 // SDL side of the virtual joystick plus the plumbing that presents them.
+#if defined(VITA3K_MANIC_EMBEDDED)
+#import "Vita3KManicRuntime-Swift.h"
+#else
 #import "Tsubomi-Swift.h"
+#endif
 
 static SDL_JoystickID g_virtual_joystick_id = 0;
 static SDL_Joystick *g_virtual_joystick = nullptr;
