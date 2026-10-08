@@ -323,45 +323,45 @@ final class LibraryState {
 /// stored properties into computed ones, which cannot be exposed to @objc.
 @objc(TsubomiLibraryStateBridge)
 @MainActor
-final class LibraryStateBridge: NSObject {
+public final class LibraryStateBridge: NSObject {
 
     /// `games` is NSArray<TsubomiGameEntry *> * from bridge_games().
     @objc(updateWithGames:settings:)
-    static func update(games: [GameEntry], settings: EmulatorSettings) {
+    public static func update(games: [GameEntry], settings: EmulatorSettings) {
         LibraryState.shared.apply(games: games, settings: settings)
     }
 
     @objc(setJITAvailable:)
-    static func setJITAvailable(_ available: Bool) {
+    public static func setJITAvailable(_ available: Bool) {
         LibraryState.shared.setJITAvailable(available)
     }
 
     @objc(reportRefreshSucceeded:)
-    static func reportRefresh(succeeded: Bool) {
+    public static func reportRefresh(succeeded: Bool) {
         LibraryState.shared.reportRefresh(succeeded: succeeded)
     }
 
     @objc(showStatusMessage:)
-    static func showStatus(_ message: String) {
+    public static func showStatus(_ message: String) {
         LibraryState.shared.showStatus(message)
     }
 
     /// Pass nil to dismiss.
     @objc(setBusyMessage:)
-    static func setBusy(_ message: String?) {
+    public static func setBusy(_ message: String?) {
         LibraryState.shared.setBusy(message)
     }
 
     /// Re-derive the entries from the core's last snapshot, for frontend-only
     /// changes the core has no new data for (a rename, a new custom cover).
-    @objc static func refreshEntries() {
+    @objc public static func refreshEntries() {
         LibraryState.shared.refreshAfterRename()
     }
 
     /// Drops cached cover art and forces every cell to reload it. Called after
     /// an install or a license import, which can make an icon appear at a path
     /// that was empty when it was last read.
-    @objc static func invalidateArt() {
+    @objc public static func invalidateArt() {
         Bridge.invalidateArt(atPath: nil)
         LibraryState.shared.bumpArtGeneration()
     }
@@ -371,30 +371,30 @@ final class LibraryStateBridge: NSObject {
     /// D-pad. `dx`/`dy` are -1, 0 or 1; the state maps them onto whichever
     /// presentation is showing.
     @objc(moveFocusByX:y:)
-    static func moveFocus(x dx: Int, y dy: Int) {
+    public static func moveFocus(x dx: Int, y dy: Int) {
         let state = LibraryState.shared
         state.moveFocus(dx: dx, dy: dy, layout: state.focusLayout)
     }
 
     /// Cross — launch the focused game, through the same firmware/JIT gating a
     /// tap goes through.
-    @objc static func activateFocused() {
+    @objc public static func activateFocused() {
         LibraryState.shared.activateFocused()
     }
 
     /// Triangle — open the game-actions menu for the focused game.
-    @objc static func showActionsForFocused() {
+    @objc public static func showActionsForFocused() {
         LibraryState.shared.showActionsForFocused()
     }
 
     /// Circle, or the library going off screen.
-    @objc static func clearFocus() {
+    @objc public static func clearFocus() {
         LibraryState.shared.clearFocus()
     }
 
     /// True when a game is focused, so the navigator knows whether Circle
     /// should clear the ring or be passed on.
-    @objc static var hasFocus: Bool {
+    @objc public static var hasFocus: Bool {
         LibraryState.shared.focusedTitleID != nil
     }
 }

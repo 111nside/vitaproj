@@ -9,10 +9,10 @@ import UIKit
 /// continue to treat it as part of that hierarchy.
 @objc(TsubomiOnboardingHost)
 @MainActor
-final class OnboardingHost: NSObject {
+public final class OnboardingHost: NSObject {
 
     @objc(onboardingViewControllerWithFinishHandler:)
-    static func onboardingViewController(onFinish: @escaping () -> Void) -> UIViewController {
+    public static func onboardingViewController(onFinish: @escaping () -> Void) -> UIViewController {
         let controller = UIHostingController(rootView: OnboardingView(onFinish: onFinish))
         // The flow draws its own full-bleed background; without this the
         // hosting controller's default background would punch a white/black

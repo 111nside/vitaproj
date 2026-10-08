@@ -7,7 +7,7 @@ import UIKit
 /// their own, so a sheet dismissed and reopened always reflects current config.
 @objc(TsubomiGameOverlayHosts)
 @MainActor
-final class GameOverlayHosts: NSObject {
+public final class GameOverlayHosts: NSObject {
 
     /// The in-game menu.
     ///
@@ -16,7 +16,7 @@ final class GameOverlayHosts: NSObject {
     /// Controller Options and Trophies replace it and return to it afterwards,
     /// and Hide Menu Button acts without any further screen.
     @objc(gameMenuViewControllerWithResume:editLayout:trophies:performanceHUD:hideMenuButton:quit:)
-    static func gameMenuViewController(
+    public static func gameMenuViewController(
         onResume: @escaping () -> Void,
         onEditLayout: @escaping () -> Void,
         onTrophies: @escaping () -> Void,
@@ -35,7 +35,7 @@ final class GameOverlayHosts: NSObject {
     }
 
     @objc(controllerOptionsViewControllerWithEditLayout:finish:)
-    static func controllerOptionsViewController(
+    public static func controllerOptionsViewController(
         onEditLayout: @escaping () -> Void,
         onFinish: @escaping () -> Void
     ) -> UIViewController {
@@ -43,7 +43,7 @@ final class GameOverlayHosts: NSObject {
     }
 
     @objc(performanceHUDPanelViewControllerWithFinish:)
-    static func performanceHUDPanelViewController(
+    public static func performanceHUDPanelViewController(
         onFinish: @escaping () -> Void
     ) -> UIViewController {
         host(PerformanceHUDPanel(onFinish: onFinish))

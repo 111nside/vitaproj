@@ -8,9 +8,9 @@ import UIKit
 /// Vita3KLibraryView that used to be added as a subview.
 @objc(TsubomiLibraryHost)
 @MainActor
-final class LibraryHost: NSObject {
+public final class LibraryHost: NSObject {
 
-    @objc static func libraryViewController() -> UIViewController {
+    @objc public static func libraryViewController() -> UIViewController {
         let controller = UIHostingController(rootView: LibraryView())
         // Opaque: this view sits over the game's Metal drawable, and anything
         // it does not paint is a window onto the last frame the game rendered.

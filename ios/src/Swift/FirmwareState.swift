@@ -51,9 +51,9 @@ final class FirmwareState {
 /// observation registrar, which cannot be exposed to the Objective-C runtime.
 @objc(TsubomiFirmwareStateBridge)
 @MainActor
-final class FirmwareStateBridge: NSObject {
+public final class FirmwareStateBridge: NSObject {
     @objc(updateWithPreinstalledReady:fontReady:mainFirmwareReady:allReady:)
-    static func update(
+    public static func update(
         preinstalledReady: Bool,
         fontReady: Bool,
         mainFirmwareReady: Bool,

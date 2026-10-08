@@ -8,14 +8,14 @@ import UIKit
 /// Objective-C++ presenter shows exactly like the view controller it replaces.
 @objc(TsubomiSettingsHost)
 @MainActor
-final class SettingsHost: NSObject {
+public final class SettingsHost: NSObject {
 
     /// Global settings.
     ///
     /// - Parameter onDismiss: called after the user taps Done and the change
     ///   has been queued, so the caller can restore whatever chrome it hid.
     @objc(globalSettingsViewControllerWithDismissHandler:)
-    static func globalSettingsViewController(
+    public static func globalSettingsViewController(
         onDismiss: @escaping () -> Void
     ) -> UIViewController {
         make(scope: .global, onDismiss: onDismiss)
@@ -23,7 +23,7 @@ final class SettingsHost: NSObject {
 
     /// Per-game overrides for one title.
     @objc(settingsViewControllerForTitle:displayName:dismissHandler:)
-    static func settingsViewController(
+    public static func settingsViewController(
         forTitle titleID: String,
         displayName: String,
         onDismiss: @escaping () -> Void

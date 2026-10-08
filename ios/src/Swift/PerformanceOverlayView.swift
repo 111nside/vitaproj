@@ -45,15 +45,15 @@ final class PerformanceState {
 
 @objc(TsubomiPerformanceStateBridge)
 @MainActor
-final class PerformanceStateBridge: NSObject {
+public final class PerformanceStateBridge: NSObject {
     @objc(updateWithFPS:frametime:memoryMB:batteryPercent:)
-    static func update(fps: Double, frametime: Double, memoryMB: Double, batteryPercent: Int) {
+    public static func update(fps: Double, frametime: Double, memoryMB: Double, batteryPercent: Int) {
         PerformanceState.shared.update(
             fps: fps, frametime: frametime, memory: memoryMB, battery: batteryPercent)
     }
 
     @objc(setVisible:)
-    static func setVisible(_ visible: Bool) {
+    public static func setVisible(_ visible: Bool) {
         PerformanceState.shared.setVisible(visible)
     }
 }

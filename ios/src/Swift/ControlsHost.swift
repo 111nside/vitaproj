@@ -74,10 +74,10 @@ private final class ControlsContainerController<Content: View>: UIViewController
 
 @objc(TsubomiControlsHost)
 @MainActor
-final class ControlsHost: NSObject {
+public final class ControlsHost: NSObject {
 
     @objc(controlsViewControllerWithMenuHandler:)
-    static func controlsViewController(onMenuTap: @escaping () -> Void) -> UIViewController {
+    public static func controlsViewController(onMenuTap: @escaping () -> Void) -> UIViewController {
         // The overlay is going up over a live game: tell the core now whether
         // Vita touchscreen input can still reach it, rather than waiting for
         // the first change to the floating-stick setting.
@@ -92,7 +92,7 @@ final class ControlsHost: NSObject {
 
     /// Enters or leaves the drag-to-reposition editor.
     @objc(setLayoutEditing:)
-    static func setLayoutEditing(_ editing: Bool) {
+    public static func setLayoutEditing(_ editing: Bool) {
         ControlsModel.shared.isEditing = editing
     }
 
@@ -103,18 +103,18 @@ final class ControlsHost: NSObject {
         Bridge.finishLayoutEditing()
     }
 
-    @objc static var isLayoutEditing: Bool {
+    @objc public static var isLayoutEditing: Bool {
         ControlsModel.shared.isEditing
     }
 
     /// Mirrors the physical-controller state so `hideWhenPhysical` can act.
     @objc(setPhysicalControllerConnected:)
-    static func setPhysicalControllerConnected(_ connected: Bool) {
+    public static func setPhysicalControllerConnected(_ connected: Bool) {
         ControlsModel.shared.physicalControllerConnected = connected
     }
 
     /// Drops every held input, for a session pausing with controls down.
-    @objc static func releaseAllInputs() {
+    @objc public static func releaseAllInputs() {
         ControlsModel.shared.pressedControls.removeAll()
         ControlsModel.shared.stickOffsets.removeAll()
         ControlsModel.shared.dynamicStickCenters.removeAll()
@@ -122,13 +122,13 @@ final class ControlsHost: NSObject {
     }
 
     /// Restores the built-in control layout.
-    @objc static func resetLayout() {
+    @objc public static func resetLayout() {
         ControlsModel.shared.resetLayout()
     }
 
     /// Hides the floating menu button, from the in-game menu's own action.
     @objc(setMenuButtonVisible:)
-    static func setMenuButtonVisible(_ visible: Bool) {
+    public static func setMenuButtonVisible(_ visible: Bool) {
         let model = ControlsModel.shared
         // Written to both layouts: the button is chrome, and hiding it in
         // landscape only to have it reappear on rotation would read as a bug.
@@ -139,14 +139,14 @@ final class ControlsHost: NSObject {
 
     /// Whether the menu button is currently hidden, so the three-finger tap
     /// knows if it has anything to restore.
-    @objc static var isMenuButtonHidden: Bool {
+    @objc public static var isMenuButtonHidden: Bool {
         !ControlsModel.shared.isMenuVisibleInAnyLayout
     }
 
     /// Reports the window's top safe-area inset in pixels. The core reads this
     /// to letterbox the guest image below the notch.
     @objc(setSafeAreaTopPixels:)
-    static func setSafeAreaTopPixels(_ pixels: Float) {
+    public static func setSafeAreaTopPixels(_ pixels: Float) {
         SafeAreaReporter.topPixels = pixels
     }
 }

@@ -16,9 +16,9 @@ final class TrophyState {
 
 @objc(TsubomiTrophyStateBridge)
 @MainActor
-final class TrophyStateBridge: NSObject {
+public final class TrophyStateBridge: NSObject {
     @objc(updateWithCollection:)
-    static func update(collection: TrophyCollection) {
+    public static func update(collection: TrophyCollection) {
         TrophyState.shared.update(collection)
     }
 }

@@ -4,10 +4,10 @@ import UIKit
 /// Objective-C entry point to the SwiftUI trophy list.
 @objc(TsubomiTrophyHost)
 @MainActor
-final class TrophyHost: NSObject {
+public final class TrophyHost: NSObject {
 
     @objc(trophyViewControllerForCollection:)
-    static func trophyViewController(for collection: TrophyCollection) -> UIViewController {
+    public static func trophyViewController(for collection: TrophyCollection) -> UIViewController {
         TrophyState.shared.update(collection)
         let box = ControllerBox()
         let view = TrophyListView {

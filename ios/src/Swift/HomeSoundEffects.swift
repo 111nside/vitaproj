@@ -12,7 +12,7 @@ import Foundation
 /// License: ios/third_party/cuelume-LICENSE.txt
 @objc(TsubomiSoundEffects)
 @MainActor
-final class HomeSoundEffects: NSObject {
+public final class HomeSoundEffects: NSObject {
     enum Cue: String {
         case tick
         case error
@@ -47,7 +47,7 @@ final class HomeSoundEffects: NSObject {
 
     /// Objective-C entry point for import/settings completion callbacks.
     @objc(playNamed:)
-    static func play(named name: String) {
+    public static func play(named name: String) {
         guard let cue = Cue(rawValue: name) else { return }
         play(cue)
     }
