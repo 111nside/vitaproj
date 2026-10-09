@@ -1866,10 +1866,19 @@ void vita3k_ios_pump_runloop(const double seconds) {
     // interval rather than spinning after each event. Off the main thread the
     // run loop has no sources and would return instantly, so sleep instead to
     // avoid a busy loop.
-    if (NSThread.isMainThread)
+    if (NSThread.isMainThread) {
         CFRunLoopRunInMode(kCFRunLoopDefaultMode, seconds, false);
-    else
+#if defined(VITA3K_MANIC_EMBEDDED)
+        // Manic launches this runtime from a UIKit control instead of SDL's
+        // own application delegate. When nested inside Manic's run loop, also
+        // service one nonblocking tracking-mode pass: UIKit delivers control
+        // tracking/touch sources in this mode, not always the default mode.
+        // Passing 0 runs a single pass without adding a second 50 ms delay.
+        CFRunLoopRunInMode((__bridge CFStringRef)UITrackingRunLoopMode, 0, true);
+#endif
+    } else {
         [NSThread sleepForTimeInterval:seconds];
+    }
 }
 
 void vita3k_ios_report_settings_result(const std::vector<std::string> &restart_required) {
