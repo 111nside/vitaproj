@@ -49,6 +49,10 @@ id bridge_trophies(const Vita3KIOSTrophyCollection &collection);
 
 // Presents the system document picker for a firmware .PUP.
 void present_firmware_picker();
+// SwiftUI's fileImporter returns an NSURL instead of invoking our
+// UIDocumentPickerDelegate. Forward that URL through the existing staging
+// and firmware-install action path so both pickers behave identically.
+void import_firmware_url(NSURL *url);
 
 // Re-reads the library display toggles and redraws the visible cells.
 void reload_library();
