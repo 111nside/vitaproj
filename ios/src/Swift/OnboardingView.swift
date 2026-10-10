@@ -1,4 +1,5 @@
 import SwiftUI
+import UniformTypeIdentifiers
 
 /// Mandatory first-run flow: six forward-only pages, three of which gate on an
 /// official firmware package actually being installed.
@@ -19,6 +20,9 @@ struct OnboardingView: View {
     let onFinish: () -> Void
 
     @State private var pageIndex = 0
+    @State private var showingFirmwareImporter = false
+    @State private var showingFirmwareImportError = false
+    @State private var firmwareImportError = ""
 
     @Environment(\.verticalSizeClass) private var verticalSizeClass
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -127,8 +131,28 @@ struct OnboardingView: View {
 
     private func chooseFirmware() {
         trace("Choose Firmware File tapped page=\(pageIndex)")
-        Bridge.presentFirmwareImportPicker()
-        trace("Choose Firmware File returned from bridge")
+        if UserDefaults.standard.bool(forKey: "tsubomi.manichosted") {
+            // Present from the SwiftUI scene that owns onboarding. The direct
+            // UIDocumentPickerViewController call bypassed SwiftUI's presenter
+            // and never became visible in Manic's nested SDL host.
+            showingFirmwareImporter = true
+            trace("SwiftUI fileImporter requested")
+        } else {
+            Bridge.presentFirmwareImportPicker()
+            trace("Choose Firmware File returned from bridge")
+        }
+    }
+
+    private func handleFirmwareSelection(_ result: Result<URL, Error>) {
+        switch result {
+        case .success(let url):
+            trace("SwiftUI firmware fileImporter returned file")
+            Bridge.importFirmwareFile(at: url)
+        case .failure(let error):
+            trace("SwiftUI firmware fileImporter failed: \(error.localizedDescription)")
+            firmwareImportError = error.localizedDescription
+            showingFirmwareImportError = true
+        }
     }
 
     private var page: Page { Self.pages[pageIndex] }
@@ -158,6 +182,27 @@ struct OnboardingView: View {
         // Forward-only: there is no back affordance, and the flow cannot be
         // dismissed interactively.
         .interactiveDismissDisabled()
+        .fileImporter(
+            isPresented: $showingFirmwareImporter,
+            allowedContentTypes: [UTType.data],
+            allowsMultipleSelection: false
+        ) { result in
+            switch result {
+            case .success(let urls):
+                guard let url = urls.first else {
+                    trace("SwiftUI firmware importer returned no files")
+                    return
+                }
+                handleFirmwareSelection(.success(url))
+            case .failure(let error):
+                handleFirmwareSelection(.failure(error))
+            }
+        }
+        .alert("Unable to select firmware", isPresented: $showingFirmwareImportError) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text(firmwareImportError)
+        }
         .onAppear { trace("Onboarding appeared page=\(pageIndex)") }
         .onChange(of: pageIndex) { old, new in
             trace("SwiftUI onChange page=\(old)->\(new)")
