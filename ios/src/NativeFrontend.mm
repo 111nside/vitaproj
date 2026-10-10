@@ -1270,6 +1270,24 @@ static UIViewController *library_presented_controller() {
 
 static Vita3KImportPicker *g_import_picker = nil;
 
+namespace vita3k_ios_internal {
+void import_firmware_url(NSURL *url) {
+    if (!url || !url.isFileURL) {
+        trace_embedded_ui(@"SwiftUI importer: invalid firmware file URL");
+        vita3k_ios_report_import_result("The selected firmware file is not a local file.", false);
+        return;
+    }
+    trace_embedded_ui(@"SwiftUI importer: firmware URL selected");
+    if (!g_import_picker)
+        g_import_picker = [[Vita3KImportPicker alloc] init];
+    g_import_picker.kind = Vita3KIOSFrontendActionKind::ImportFirmware;
+    g_import_picker.titleId = nil;
+    // Reuse the existing security-scoped, coordinated background copy. The
+    // delegate does not need the picker instance; it only needs the URL.
+    [g_import_picker documentPicker:nil didPickDocumentsAtURLs:@[url]];
+}
+} // namespace vita3k_ios_internal
+
 namespace {
 
 UIViewController *document_picker_presenter() {
