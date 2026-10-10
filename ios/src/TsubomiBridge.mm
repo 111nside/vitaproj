@@ -343,6 +343,10 @@ id bridge_games() {
     vita3k_ios_internal::present_firmware_picker();
 }
 
++ (void)importFirmwareFileAtURL:(NSURL *)url {
+    vita3k_ios_internal::import_firmware_url(url);
+}
+
 + (void)markOnboardingComplete {
     [NSUserDefaults.standardUserDefaults setBool:YES forKey:@"tsubomi.onboarded"];
 }
