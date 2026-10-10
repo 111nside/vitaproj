@@ -163,6 +163,11 @@ NS_SWIFT_NAME(Bridge)
 /// firmware-ready flags, which the onboarding flow observes.
 + (void)presentFirmwareImportPicker;
 
+// SwiftUI's fileImporter returns a scoped file URL. Hand it to the same
+// background file-staging and firmware installation pipeline used by UIKit.
++ (void)importFirmwareFileAtURL:(NSURL *)url
+    NS_SWIFT_NAME(importFirmwareFile(at:));
+
 /// Records that onboarding has been completed, so it is never shown again.
 + (void)markOnboardingComplete;
 
