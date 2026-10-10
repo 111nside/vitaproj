@@ -42,6 +42,39 @@
 // SDL's root controller. The presentation hook needs this reference so home
 // sheets recess the library rather than the hidden Metal view below it.
 static UIViewController *g_library_controller = nil;
+
+// Diagnostic breadcrumbs survive a UI stall and can be exported after Manic
+// is relaunched. Keep this embedded-only; standalone Tsubomi is unchanged.
+static void trace_embedded_ui(NSString *event) {
+#if defined(VITA3K_MANIC_EMBEDDED)
+    NSString *documents = NSSearchPathForDirectoriesInDomains(
+        NSDocumentDirectory, NSUserDomainMask, YES).firstObject;
+    if (!documents)
+        return;
+    NSString *directory = [documents stringByAppendingPathComponent:@"Tsubomi"];
+    [NSFileManager.defaultManager createDirectoryAtPath:directory
+                             withIntermediateDirectories:YES attributes:nil error:nil];
+    NSString *path = [directory stringByAppendingPathComponent:@"ui-diagnostics.log"];
+    NSString *record = [NSString stringWithFormat:@"%@ [Native] %@ main=%d\n",
+        NSDate.date, event, NSThread.isMainThread];
+    NSData *data = [record dataUsingEncoding:NSUTF8StringEncoding];
+    if (![NSFileManager.defaultManager fileExistsAtPath:path]) {
+        [data writeToFile:path atomically:YES];
+        return;
+    }
+    NSFileHandle *handle = [NSFileHandle fileHandleForWritingAtPath:path];
+    if (!handle)
+        return;
+    @try {
+        [handle seekToEndOfFile];
+        [handle writeData:data];
+    } @finally {
+        [handle closeFile];
+    }
+#else
+    (void)event;
+#endif
+}
 #if defined(VITA3K_MANIC_EMBEDDED)
 // Manic already has an SDL/Metal root controller. Give Tsubomi a separate
 // UIKit window with a real root controller so SwiftUI can update and present
@@ -1268,9 +1301,15 @@ UIDocumentPickerViewController *import_picker(NSArray<UTType *> *types) {
 // Presents the Files picker for a game/firmware/license import. Attached to the
 // + button's UIMenu (games/firmware) and the post-install license prompt.
 void present_import_picker(BOOL firmware) {
+    trace_embedded_ui(firmware ? @"import_picker: firmware invoked" : @"import_picker: game invoked");
     UIViewController *presenter = document_picker_presenter();
-    if (!presenter)
+    if (!presenter) {
+        trace_embedded_ui(@"import_picker: no presenter");
         return;
+    }
+    trace_embedded_ui([NSString stringWithFormat:@"import_picker: presenter=%@ attached=%d alreadyPresenting=%d",
+        NSStringFromClass(presenter.class), presenter.view.window != nil,
+        presenter.presentedViewController != nil]);
     if (!g_import_picker)
         g_import_picker = [[Vita3KImportPicker alloc] init];
     g_import_picker.kind = firmware ? Vita3KIOSFrontendActionKind::ImportFirmware
@@ -1294,7 +1333,20 @@ void present_import_picker(BOOL firmware) {
     UIDocumentPickerViewController *picker = import_picker(types);
     picker.delegate = g_import_picker;
     picker.allowsMultipleSelection = NO;
+#if defined(VITA3K_MANIC_EMBEDDED)
+    // Avoid scheduling a second modal-depth animation inside the already
+    // nested SDL runloop. Completion logging tells us if UIKit can finish
+    // the presentation at all.
+    [presenter presentViewController:picker animated:NO completion:^{
+        trace_embedded_ui(@"import_picker: UIKit presentation completed");
+    }];
+    trace_embedded_ui(@"import_picker: present call returned");
+    dispatch_async(dispatch_get_main_queue(), ^{
+        trace_embedded_ui(@"import_picker: main dispatch queue serviced");
+    });
+#else
     [presenter presentViewController:picker animated:YES completion:nil];
+#endif
 }
 
 void present_license_picker() {
@@ -1377,8 +1429,11 @@ void vita3k_ios_show_library(const std::vector<Vita3KIOSGameEntry> &games,
     const Vita3KIOSSettings settingsCopy = settings;
     perform_on_main(^{
         UIWindow *window = active_window();
-        if (!window)
+        if (!window) {
+            trace_embedded_ui(@"show_library: no active window");
             return;
+        }
+        trace_embedded_ui(@"show_library started");
 #if defined(VITA3K_MANIC_EMBEDDED)
         // Do not attach SwiftUI's root view directly to SDL's UIWindow.
         // That leaves its view controller out of the presentation hierarchy:
@@ -1406,6 +1461,7 @@ void vita3k_ios_show_library(const std::vector<Vita3KIOSGameEntry> &games,
             }
         }
         [g_manic_library_window makeKeyAndVisible];
+        trace_embedded_ui(@"show_library: dedicated window made key");
         UIView *host = g_manic_library_window;
 #else
         // The library's view goes on the WINDOW, and the controller has NO
@@ -1496,6 +1552,7 @@ void vita3k_ios_show_library(const std::vector<Vita3KIOSGameEntry> &games,
 #endif
             }
             [library_view() bringSubviewToFront:g_onboarding_controller.view];
+            trace_embedded_ui(@"show_library: onboarding attached");
         }
         [library_view().superview bringSubviewToFront:library_view()];
         set_metal_drawables_hidden(library_metal_window(), YES);
