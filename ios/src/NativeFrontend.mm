@@ -252,6 +252,13 @@ void restore_modal_depth(UIView *view, BOOL animated,
 @implementation UIViewController (TsubomiModalDepth)
 
 + (void)load {
+#if defined(VITA3K_MANIC_EMBEDDED)
+    // This framework lives in Manic's UIApplication. Swizzling the base
+    // UIViewController class here also modifies every Manic screen and can
+    // recess the onboarding UI while a picker is hidden underneath it.
+    // Keep Tsubomi's modal-depth effect exclusive to the standalone app.
+    return;
+#endif
     static dispatch_once_t once;
     dispatch_once(&once, ^{
         Method present = class_getInstanceMethod(
@@ -1205,7 +1212,17 @@ static Vita3KImportPicker *g_import_picker = nil;
 namespace {
 
 UIViewController *document_picker_presenter() {
-    UIViewController *presenter = active_window().rootViewController;
+    UIViewController *presenter = nil;
+#if defined(VITA3K_MANIC_EMBEDDED)
+    // The SwiftUI Tsubomi library is installed directly on UIWindow ABOVE
+    // SDL's root view. Presenting from that root makes a Files sheet appear
+    // underneath the opaque library. It looks like the app froze even though
+    // the presentation began. Present from the visible library controller.
+    if (g_library_controller && g_library_controller.viewIfLoaded.window)
+        presenter = g_library_controller;
+#endif
+    if (!presenter)
+        presenter = active_window().rootViewController;
     while (presenter.presentedViewController)
         presenter = presenter.presentedViewController;
     return presenter;
@@ -1379,6 +1396,12 @@ void vita3k_ios_show_library(const std::vector<Vita3KIOSGameEntry> &games,
         publish_core_snapshot(gamesCopy, settingsCopy);
         [TsubomiLibraryStateBridge setJITAvailable:g_jit_available];
         NSUserDefaults *defaults = NSUserDefaults.standardUserDefaults;
+#if defined(VITA3K_MANIC_EMBEDDED)
+        // The embedded frontend is serviced by a nested SDL/UIKit run loop.
+        // Tell onboarding to avoid SwiftUI page transitions that can wait for
+        // a second UIKit touch event before committing their animations.
+        [defaults setBool:YES forKey:@"tsubomi.manichosted"];
+#endif
         if (settingsCopy.firmware_ready) {
             // Existing installs that already contain all three packages never
             // see onboarding, even when upgrading from a build predating it.
