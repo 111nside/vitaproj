@@ -42,6 +42,13 @@
 // SDL's root controller. The presentation hook needs this reference so home
 // sheets recess the library rather than the hidden Metal view below it.
 static UIViewController *g_library_controller = nil;
+#if defined(VITA3K_MANIC_EMBEDDED)
+// Manic already has an SDL/Metal root controller. Give Tsubomi a separate
+// UIKit window with a real root controller so SwiftUI can update and present
+// the Files picker without being buried under SDL's presentation hierarchy.
+static UIWindow *g_manic_library_window = nil;
+static UIWindow *g_manic_game_window = nil;
+#endif
 // Edge constraints keep the hosting view's untransformed bounds matched to the
 // window while modal depth temporarily scales it. Frame/autoresizing math uses
 // the transformed frame during rotation and can leave the restored library
@@ -896,9 +903,30 @@ std::string hex_bytes(const std::string &value) {
 // Onboarding is added over the library's view, so it is retained alongside it.
 static UIViewController *g_onboarding_controller = nil;
 
+static void remove_onboarding_controller() {
+    if (!g_onboarding_controller)
+        return;
+#if defined(VITA3K_MANIC_EMBEDDED)
+    [g_onboarding_controller willMoveToParentViewController:nil];
+#endif
+    [g_onboarding_controller.view removeFromSuperview];
+#if defined(VITA3K_MANIC_EMBEDDED)
+    [g_onboarding_controller removeFromParentViewController];
+#endif
+    g_onboarding_controller = nil;
+}
+
 // Convenience for the many call sites that only want the library's view.
 static UIView *library_view() {
     return g_library_controller.view;
+}
+
+static UIWindow *library_metal_window() {
+#if defined(VITA3K_MANIC_EMBEDDED)
+    return g_manic_game_window;
+#else
+    return library_view().window ?: active_window();
+#endif
 }
 
 static void attach_library_view(UIView *host) {
@@ -1351,6 +1379,35 @@ void vita3k_ios_show_library(const std::vector<Vita3KIOSGameEntry> &games,
         UIWindow *window = active_window();
         if (!window)
             return;
+#if defined(VITA3K_MANIC_EMBEDDED)
+        // Do not attach SwiftUI's root view directly to SDL's UIWindow.
+        // That leaves its view controller out of the presentation hierarchy:
+        // Next animations can wait for another touch and the Files picker is
+        // shown underneath the onboarding overlay. A scene-owned UIWindow
+        // with its own root fixes both UIKit ownership problems.
+        if (!g_manic_library_window) {
+            UIWindowScene *scene = window.windowScene;
+            if (!scene) {
+                LOG_ERROR("Manic Vita library: SDL window has no UIWindowScene");
+                return;
+            }
+            g_manic_game_window = window;
+            g_manic_library_window = [[UIWindow alloc] initWithWindowScene:scene];
+            g_manic_library_window.windowLevel = UIWindowLevelNormal + 1;
+            g_manic_library_window.backgroundColor = UIColor.systemBackgroundColor;
+        }
+        BOOL playLaunchIntro = NO;
+        if (!g_library_controller) {
+            g_library_controller = [TsubomiLibraryHost libraryViewController];
+            g_manic_library_window.rootViewController = g_library_controller;
+            if (!g_app_launch_intro_shown) {
+                playLaunchIntro = YES;
+                g_app_launch_intro_shown = YES;
+            }
+        }
+        [g_manic_library_window makeKeyAndVisible];
+        UIView *host = g_manic_library_window;
+#else
         // The library's view goes on the WINDOW, and the controller has NO
         // parent view controller. Both halves of that matter.
         //
@@ -1383,6 +1440,7 @@ void vita3k_ios_show_library(const std::vector<Vita3KIOSGameEntry> &games,
         } else if (library_view().superview != host) {
             attach_library_view(host);
         }
+#endif
         [host layoutIfNeeded];
         library_view().hidden = NO;
         const BOOL animateLaunchIntro = playLaunchIntro && !UIAccessibilityIsReduceMotionEnabled();
@@ -1406,8 +1464,7 @@ void vita3k_ios_show_library(const std::vector<Vita3KIOSGameEntry> &games,
             // Existing installs that already contain all three packages never
             // see onboarding, even when upgrading from a build predating it.
             [defaults setBool:YES forKey:@"tsubomi.onboarded"];
-            [g_onboarding_controller.view removeFromSuperview];
-            g_onboarding_controller = nil;
+            remove_onboarding_controller();
         } else if (![defaults boolForKey:@"tsubomi.onboarded"] || !settingsCopy.firmware_ready) {
             if (!g_onboarding_controller) {
                 // Firmware progress reaches the flow through FirmwareState,
@@ -1416,8 +1473,7 @@ void vita3k_ios_show_library(const std::vector<Vita3KIOSGameEntry> &games,
                 g_onboarding_controller =
                     [TsubomiOnboardingHost onboardingViewControllerWithFinishHandler:^{
                         void (^removeOnboarding)(void) = ^{
-                            [g_onboarding_controller.view removeFromSuperview];
-                            g_onboarding_controller = nil;
+                            remove_onboarding_controller();
                         };
                         if (UIAccessibilityIsReduceMotionEnabled()) {
                             removeOnboarding();
@@ -1431,12 +1487,18 @@ void vita3k_ios_show_library(const std::vector<Vita3KIOSGameEntry> &games,
                 onboarding.frame = library_view().bounds;
                 onboarding.autoresizingMask =
                     UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleHeight;
+#if defined(VITA3K_MANIC_EMBEDDED)
+                [g_library_controller addChildViewController:g_onboarding_controller];
+#endif
                 [library_view() addSubview:onboarding];
+#if defined(VITA3K_MANIC_EMBEDDED)
+                [g_onboarding_controller didMoveToParentViewController:g_library_controller];
+#endif
             }
             [library_view() bringSubviewToFront:g_onboarding_controller.view];
         }
         [library_view().superview bringSubviewToFront:library_view()];
-        set_metal_drawables_hidden(window, YES);
+        set_metal_drawables_hidden(library_metal_window(), YES);
         [Vita3KPadNavigator.shared start];
         if (animateLaunchIntro) {
             UIView *introTarget = library_view();
@@ -1459,7 +1521,7 @@ void vita3k_ios_show_library(const std::vector<Vita3KIOSGameEntry> &games,
                 return;
             library_view().hidden = NO;
             [library_view().superview bringSubviewToFront:library_view()];
-            set_metal_drawables_hidden(library_view().window ?: active_window(), YES);
+            set_metal_drawables_hidden(library_metal_window(), YES);
         });
         // Teardown can still straggle past that one tick, so keep re-hiding on
         // a short timer. Bounded, not forever: teardown straggles for a few
@@ -1475,10 +1537,10 @@ void vita3k_ios_show_library(const std::vector<Vita3KIOSGameEntry> &games,
                     [timer invalidate];
                     g_library_metal_hide_timer = nil;
                     if (g_library_controller)
-                        set_metal_drawables_hidden(library_view().window ?: active_window(), YES);
+                        set_metal_drawables_hidden(library_metal_window(), YES);
                     return;
                 }
-                set_metal_drawables_hidden(library_view().window ?: active_window(), YES);
+                set_metal_drawables_hidden(library_metal_window(), YES);
             }];
         }
     });
@@ -1496,7 +1558,17 @@ void vita3k_ios_update_library(const std::vector<Vita3KIOSGameEntry> &games,
 void vita3k_ios_hide_library() {
     perform_on_main(^{
         [Vita3KPadNavigator.shared stop];
-        set_metal_drawables_hidden(library_view().window ?: active_window(), NO);
+        set_metal_drawables_hidden(library_metal_window(), NO);
+        remove_onboarding_controller();
+#if defined(VITA3K_MANIC_EMBEDDED)
+        // Restore the SDL window before returning to an emulated game, then
+        // tear down the dedicated UIKit window and its root controller.
+        g_manic_library_window.hidden = YES;
+        g_manic_library_window.rootViewController = nil;
+        [g_manic_game_window makeKeyWindow];
+        g_manic_library_window = nil;
+        g_manic_game_window = nil;
+#else
         // Matches the manual appearance transition in show_library; there is
         // no containment to unwind.
         [g_library_controller beginAppearanceTransition:NO animated:NO];
@@ -1504,9 +1576,8 @@ void vita3k_ios_hide_library() {
         g_library_constraints = nil;
         [library_view() removeFromSuperview];
         [g_library_controller endAppearanceTransition];
+#endif
         g_library_controller = nil;
-        [g_onboarding_controller.view removeFromSuperview];
-        g_onboarding_controller = nil;
         [g_library_metal_hide_timer invalidate];
         g_library_metal_hide_timer = nil;
     });
