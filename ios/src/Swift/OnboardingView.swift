@@ -163,7 +163,7 @@ struct OnboardingView: View {
             removal: .move(edge: .leading).combined(with: .opacity)
         ) : .identity)
         .animation(animatePages ? .snappy(duration: 0.3) : nil, value: pageIndex)
-        .animation(reduceMotion ? nil : .snappy(duration: 0.25), value: requirementSatisfied)
+        .animation(animatePages ? .snappy(duration: 0.25) : nil, value: requirementSatisfied)
     }
 
     @ViewBuilder
@@ -233,8 +233,8 @@ struct OnboardingView: View {
         }
         .controlSize(.large)
         .frame(maxWidth: .infinity)
-        .animation(reduceMotion ? nil : .snappy(duration: 0.25), value: requirementSatisfied)
-        .animation(reduceMotion ? nil : .snappy(duration: 0.25), value: installProgress)
+        .animation(animatePages ? .snappy(duration: 0.25) : nil, value: requirementSatisfied)
+        .animation(animatePages ? .snappy(duration: 0.25) : nil, value: installProgress)
     }
 
     /// Page indicator. Forward-only, so the dots are a progress readout rather
