@@ -92,6 +92,45 @@ struct OnboardingView: View {
         ),
     ]
 
+    // A nested SDL loop may process touches while starving subsequent SwiftUI
+    // render / main-dispatch work. Persist both halves of the transition so an
+    // on-device report can distinguish an ignored tap from a blocked update.
+    private func trace(_ event: String) {
+        guard UserDefaults.standard.bool(forKey: "tsubomi.manichosted") else { return }
+        let manager = FileManager.default
+        guard let docs = manager.urls(for: .documentDirectory, in: .userDomainMask).first else { return }
+        let folder = docs.appendingPathComponent("Tsubomi", isDirectory: true)
+        try? manager.createDirectory(at: folder, withIntermediateDirectories: true)
+        let file = folder.appendingPathComponent("ui-diagnostics.log")
+        let message = "\(Date()) [SwiftUI] \(event) main=\(Thread.isMainThread)\n"
+        guard let bytes = message.data(using: .utf8) else { return }
+        if !manager.fileExists(atPath: file.path) {
+            try? bytes.write(to: file, options: .atomic)
+        } else if let handle = try? FileHandle(forWritingTo: file) {
+            defer { try? handle.close() }
+            do {
+                try handle.seekToEnd()
+                try handle.write(contentsOf: bytes)
+            } catch { }
+        }
+    }
+
+    private func advance() {
+        let old = pageIndex
+        trace("Next tapped page=\(old)")
+        pageIndex = min(old + 1, Self.pages.count - 1)
+        trace("Next state written page=\(pageIndex)")
+        DispatchQueue.main.async {
+            trace("Next main queue resumed page=\(pageIndex)")
+        }
+    }
+
+    private func chooseFirmware() {
+        trace("Choose Firmware File tapped page=\(pageIndex)")
+        Bridge.presentFirmwareImportPicker()
+        trace("Choose Firmware File returned from bridge")
+    }
+
     private var page: Page { Self.pages[pageIndex] }
     private var isLastPage: Bool { pageIndex == Self.pages.count - 1 }
 
@@ -119,6 +158,10 @@ struct OnboardingView: View {
         // Forward-only: there is no back affordance, and the flow cannot be
         // dismissed interactively.
         .interactiveDismissDisabled()
+        .onAppear { trace("Onboarding appeared page=\(pageIndex)") }
+        .onChange(of: pageIndex) { old, new in
+            trace("SwiftUI onChange page=\(old)->\(new)")
+        }
     }
 
     private var pageContent: some View {
@@ -158,6 +201,7 @@ struct OnboardingView: View {
         }
         // Pages slide in from the trailing edge, matching a forward-only flow.
         .id(pageIndex)
+        .onAppear { trace("Page rendered page=\(pageIndex)") }
         .transition(animatePages ? .asymmetric(
             insertion: .move(edge: .trailing).combined(with: .opacity),
             removal: .move(edge: .leading).combined(with: .opacity)
@@ -192,12 +236,12 @@ struct OnboardingView: View {
                 // already used, and Next reads as unavailable.
                 if requirementSatisfied {
                     Button("Choose Firmware File") {
-                        Bridge.presentFirmwareImportPicker()
+                        chooseFirmware()
                     }
                     .buttonStyle(.glass)
                 } else {
                     Button("Choose Firmware File") {
-                        Bridge.presentFirmwareImportPicker()
+                        chooseFirmware()
                     }
                     .buttonStyle(.glassProminent)
                 }
@@ -214,17 +258,17 @@ struct OnboardingView: View {
                 .disabled(!firmware.allPackagesReady)
             } else if page.requirement == nil {
                 // No firmware button on this page, so Next is the primary.
-                Button("Next") { pageIndex += 1 }
+                Button("Next") { advance() }
                     .buttonStyle(.glassProminent)
             } else if requirementSatisfied {
                 // The package is in: this is now the only thing left to do.
-                Button("Next") { pageIndex += 1 }
+                Button("Next") { advance() }
                     .buttonStyle(.glassProminent)
             } else {
                 // Plain glass and disabled: "Choose Firmware File" above is
                 // the primary until its package is installed, and only one
                 // element per screen should carry the tint.
-                Button("Next") { pageIndex += 1 }
+                Button("Next") { advance() }
                     .buttonStyle(.glass)
                     .disabled(true)
             }
