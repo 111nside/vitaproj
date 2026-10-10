@@ -23,6 +23,14 @@ struct OnboardingView: View {
     @Environment(\.verticalSizeClass) private var verticalSizeClass
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
+    // Manic's embedded SDL frontend runs a nested UIKit event loop. SwiftUI's
+    // move/slide transition may not complete until another touch wakes UIKit.
+    // Keep the standalone app's animations, but make embedded page changes
+    // immediate so one tap advances to the correct firmware step.
+    private var animatePages: Bool {
+        !reduceMotion && !UserDefaults.standard.bool(forKey: "tsubomi.manichosted")
+    }
+
     /// Computed rather than stored: touching a @MainActor singleton from a
     /// struct's property initializer would be an isolation violation.
     /// @Observable tracks the reads either way.
@@ -150,11 +158,11 @@ struct OnboardingView: View {
         }
         // Pages slide in from the trailing edge, matching a forward-only flow.
         .id(pageIndex)
-        .transition(.asymmetric(
+        .transition(animatePages ? .asymmetric(
             insertion: .move(edge: .trailing).combined(with: .opacity),
             removal: .move(edge: .leading).combined(with: .opacity)
-        ))
-        .animation(reduceMotion ? nil : .snappy(duration: 0.3), value: pageIndex)
+        ) : .identity)
+        .animation(animatePages ? .snappy(duration: 0.3) : nil, value: pageIndex)
         .animation(reduceMotion ? nil : .snappy(duration: 0.25), value: requirementSatisfied)
     }
 
@@ -241,7 +249,7 @@ struct OnboardingView: View {
             }
         }
         .padding(.top, 4)
-        .animation(reduceMotion ? nil : .snappy(duration: 0.3), value: pageIndex)
+        .animation(animatePages ? .snappy(duration: 0.3) : nil, value: pageIndex)
         .accessibilityElement()
         .accessibilityLabel("Step \(pageIndex + 1) of \(Self.pages.count)")
     }
