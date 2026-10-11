@@ -12,6 +12,7 @@
 #include <SDL3/SDL.h>
 #include <SDL3/SDL_main.h>
 #include <atomic>
+#include <algorithm>
 #include <cstring>
 #include <deque>
 #include <mutex>
@@ -22,6 +23,9 @@ int vita3k_manic_embedded_entry(int argc, char *argv[]);
 
 namespace {
 std::atomic_bool g_runtime_running{false};
+std::atomic_int g_host_mode{0};
+std::string g_next_title;
+std::mutex g_next_title_mutex;
 struct PendingImport {
     std::string path;
     int kind;
@@ -31,7 +35,10 @@ std::deque<PendingImport> g_pending_imports;
 
 
 struct RunningScope {
-    ~RunningScope() { g_runtime_running.store(false, std::memory_order_release); }
+    ~RunningScope() {
+        g_host_mode.store(0, std::memory_order_release);
+        g_runtime_running.store(false, std::memory_order_release);
+    }
 };
 } // namespace
 
@@ -84,6 +91,51 @@ extern "C" int manic_vita3k_take_import(char *path, size_t capacity, int *kind) 
     *kind = entry.kind;
     g_pending_imports.pop_front();
     return 1;
+}
+
+extern "C" void manic_vita3k_set_host_mode(int mode) {
+    if (g_runtime_running.load(std::memory_order_acquire))
+        return;
+    g_host_mode.store(mode >= 0 && mode <= 2 ? mode : 0, std::memory_order_release);
+}
+
+extern "C" int manic_vita3k_host_mode(void) {
+    return g_host_mode.load(std::memory_order_acquire);
+}
+
+extern "C" int manic_vita3k_queue_title(const char *title_id) {
+    if (!title_id || !*title_id)
+        return 0;
+    const size_t length = std::strlen(title_id);
+    if (length > 16)
+        return 0;
+    for (size_t i = 0; i < length; ++i) {
+        const unsigned char ch = static_cast<unsigned char>(title_id[i]);
+        if (!((ch >= 'A' && ch <= 'Z') || (ch >= 'a' && ch <= 'z')
+                || (ch >= '0' && ch <= '9') || ch == '_' || ch == '-'))
+            return 0;
+    }
+    std::lock_guard<std::mutex> lock(g_next_title_mutex);
+    g_next_title = title_id;
+    return 1;
+}
+
+extern "C" int manic_vita3k_take_title(char *title_id, size_t capacity) {
+    if (!title_id || capacity == 0)
+        return -1;
+    std::lock_guard<std::mutex> lock(g_next_title_mutex);
+    if (g_next_title.empty())
+        return 0;
+    if (g_next_title.size() + 1 > capacity)
+        return -1;
+    std::memcpy(title_id, g_next_title.c_str(), g_next_title.size() + 1);
+    g_next_title.clear();
+    return 1;
+}
+
+extern "C" int manic_vita3k_pending_import_count(void) {
+    std::lock_guard<std::mutex> lock(g_pending_import_mutex);
+    return static_cast<int>(g_pending_imports.size());
 }
 
 extern "C" int manic_vita3k_is_running(void) {
