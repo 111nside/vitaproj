@@ -162,6 +162,8 @@ NS_SWIFT_NAME(Bridge)
 /// import runs asynchronously; completion is reported by the core updating the
 /// firmware-ready flags, which the onboarding flow observes.
 + (void)presentFirmwareImportPicker;
+/// Return from the embedded firmware onboarding screen to XMB Manic.
++ (void)returnToManic;
 
 // SwiftUI's fileImporter returns a scoped file URL. Hand it to the same
 // background file-staging and firmware installation pipeline used by UIKit.
