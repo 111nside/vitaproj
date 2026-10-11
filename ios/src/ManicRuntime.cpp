@@ -64,7 +64,10 @@ extern "C" int manic_vita3k_run(void) {
     SDL_SetMainReady();
     char app_name[] = "Vita3KManicRuntime";
     char *argv[] = {app_name, nullptr};
-    return vita3k_manic_embedded_entry(1, argv);
+    manic_vita3k_capture_host_window();
+    const int status = vita3k_manic_embedded_entry(1, argv);
+    manic_vita3k_restore_host_window();
+    return status;
 }
 
 extern "C" void manic_vita3k_request_exit(void) {
