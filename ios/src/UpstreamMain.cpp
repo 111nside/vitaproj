@@ -2306,6 +2306,39 @@ void apply_game_session_settings(EmuEnvState &emuenv, const Vita3KIOSSettings &s
 
 std::optional<AppLaunchRequest> choose_boot_title(EmuEnvState &emuenv) {
     auto games = native_games(emuenv);
+#if defined(VITA3K_MANIC_EMBEDDED)
+    const int host_mode = manic_vita3k_host_mode();
+    // Keep UIKit button actions in Manic's normal outer event loop. For
+    // a direct game boot, bypass the embedded SwiftUI title browser.
+    if (host_mode == 2) {
+        char requested_title[32]{};
+        if (manic_vita3k_take_title(requested_title, sizeof(requested_title)) != 1) {
+            manic_vita3k_record_import_result("No Vita title was selected.", 0);
+            return std::nullopt;
+        }
+        if (!firmware_setup_complete(emuenv)) {
+            manic_vita3k_record_import_result("Install all Vita firmware packages before playing.", 0);
+            return std::nullopt;
+        }
+        if (!ios_jit_available()) {
+            manic_vita3k_record_import_result("Enable JIT before launching Vita games.", 0);
+            return std::nullopt;
+        }
+        for (const auto &game : games) {
+            if (game.title_id == requested_title) {
+                g_current_trophy_id = game.trophy_id;
+                g_current_title = game.title;
+                g_current_title_id = game.title_id;
+                LOG_INFO("Launching Manic-selected Vita game: {}", game.title_id);
+                return AppLaunchRequest{.app_path = game.app_path};
+            }
+        }
+        LOG_ERROR("Manic requested unavailable Vita title '{}'", requested_title);
+        manic_vita3k_record_import_result("The selected Vita game was not found.", 0);
+        return std::nullopt;
+    }
+    int staged_imports_started = 0;
+#endif
     if (games.empty()) {
         LOG_WARN("No installed titles were found under {}. Showing native empty-library instructions.",
             emuenv.vita_fs_path / "ux0/app");
@@ -2345,10 +2378,19 @@ std::optional<AppLaunchRequest> choose_boot_title(EmuEnvState &emuenv) {
                 games = native_games(emuenv);
                 vita3k_ios_update_library(games, native_settings(emuenv));
             }
-            vita3k_ios_report_import_result(message, success, needs_attention);
+#if defined(VITA3K_MANIC_EMBEDDED)
+            if (host_mode == 1)
+                manic_vita3k_record_import_result(message.c_str(), success ? 1 : 0);
+            else
+#endif
+                vita3k_ios_report_import_result(message, success, needs_attention);
             if (!share_path.empty())
                 vita3k_ios_share_file(share_path);
-            if (success && rescan_apps && !was_firmware)
+            if (success && rescan_apps && !was_firmware
+#if defined(VITA3K_MANIC_EMBEDDED)
+                && host_mode != 1
+#endif
+            )
                 maybe_prompt_license_import(emuenv, installed_applications);
         }
 
@@ -2364,6 +2406,7 @@ std::optional<AppLaunchRequest> choose_boot_title(EmuEnvState &emuenv) {
             if (next == 1) {
                 LOG_INFO("Starting XMB-selected Vita {} import",
                     queued_kind == 1 ? "firmware" : "game");
+                ++staged_imports_started;
                 start_import(emuenv, queued_path, queued_kind == 1);
             } else if (next < 0) {
                 LOG_ERROR("Queued Manic Vita file path exceeds import buffer");
@@ -2371,6 +2414,16 @@ std::optional<AppLaunchRequest> choose_boot_title(EmuEnvState &emuenv) {
         }
 #endif
 
+#if defined(VITA3K_MANIC_EMBEDDED)
+        // Exit the install-only session when all staged files have finished.
+        // This gives normal UIKit navigation back to XMB between imports.
+        if (host_mode == 1 && staged_imports_started > 0 && !g_import_job
+            && manic_vita3k_pending_import_count() == 0) {
+            LOG_INFO("Manic Vita install-only session completed");
+            vita3k_ios_hide_library();
+            return std::nullopt;
+        }
+#endif
         if (auto action = vita3k_ios_take_frontend_action()) {
             switch (action->kind) {
             case Vita3KIOSFrontendActionKind::Launch:
@@ -2800,6 +2853,12 @@ int main(int argc, char *argv[]) {
     if (!session_controller.begin_launch(*launch_request)) {
         LOG_ERROR("Could not prepare app '{}' for launch.", launch_request->app_path);
         restore_global_config();
+#if defined(VITA3K_MANIC_EMBEDDED)
+        if (manic_vita3k_host_mode() == 2) {
+            manic_vita3k_record_import_result("Vita3K could not prepare the selected game.", 0);
+            break;
+        }
+#endif
         vita3k_ios_show_boot_error(
             "Tsubomi could not prepare this game. The failed launch was cleaned up; try again, "
             "and export tsubomi.log plus the iOS crash report if it repeats.");
@@ -2866,6 +2925,12 @@ int main(int argc, char *argv[]) {
         emuenv->audio.adapter.reset();
         emuenv->audio.audio_backend.clear();
         restore_global_config();
+#if defined(VITA3K_MANIC_EMBEDDED)
+        if (manic_vita3k_host_mode() == 2) {
+            manic_vita3k_record_import_result(boot_error.c_str(), 0);
+            break;
+        }
+#endif
         vita3k_ios_show_boot_error(boot_error);
         continue;
     }
@@ -3107,6 +3172,12 @@ int main(int argc, char *argv[]) {
     emuenv->audio.audio_backend.clear();
     restore_global_config();
 
+#if defined(VITA3K_MANIC_EMBEDDED)
+    if (manic_vita3k_host_mode() == 2) {
+        LOG_INFO("Returning to Manic XMB after direct Vita game session");
+        break;
+    }
+#endif
     LOG_INFO("Returning to game library");
     } // while (!app_terminating)
 
