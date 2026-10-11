@@ -2084,3 +2084,29 @@ void vita3k_ios_report_settings_result(const std::vector<std::string> &restart_r
                 [labels componentsJoinedByString:@", "]]];
     });
 }
+
+
+#if defined(VITA3K_MANIC_EMBEDDED)
+// The native Vita framework temporarily makes its own SDL window key.
+// Remember the preexisting Manic host window so returning from a direct game
+// or headless import does not leave the app focused on a destroyed SDL window.
+static UIWindow *g_manic_saved_host_window = nil;
+
+extern "C" void manic_vita3k_capture_host_window(void) {
+    if (!NSThread.isMainThread)
+        return;
+    g_manic_saved_host_window = active_window();
+}
+
+extern "C" void manic_vita3k_restore_host_window(void) {
+    if (!NSThread.isMainThread)
+        return;
+    UIWindow *host = g_manic_saved_host_window;
+    g_manic_saved_host_window = nil;
+    if (host && !host.hidden) {
+        [host makeKeyAndVisible];
+        [host.rootViewController.view setNeedsLayout];
+        [host.rootViewController.view layoutIfNeeded];
+    }
+}
+#endif
