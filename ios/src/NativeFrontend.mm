@@ -1200,11 +1200,63 @@ static Vita3KImportPicker *g_import_picker = nil;
 
 namespace {
 
+// The SwiftUI library and onboarding are attached directly to UIWindow, above
+// SDL's root view. Presenting Files from the SDL root can place its modal BEHIND
+// those overlays, so the button appears inert even though UIKit accepted it.
+// Use the visible UI's own hosting controller instead; do not reparent it to SDL
+// (that would recreate the Metal-layer / appearance hierarchy crash).
 UIViewController *document_picker_presenter() {
-    UIViewController *presenter = active_window().rootViewController;
-    while (presenter.presentedViewController)
-        presenter = presenter.presentedViewController;
-    return presenter;
+    UIViewController *onboarding = g_onboarding_controller;
+    if (onboarding.isViewLoaded && onboarding.view.window)
+        return onboarding;
+
+    UIViewController *library = g_library_controller;
+    if (library.isViewLoaded && library.view.window)
+        return library;
+
+    UIWindow *window = active_window();
+    return window.rootViewController;
+}
+
+// A SwiftUI Menu or a dismissing Settings sheet may still own the presentation
+// transition when its button action fires. UIKit silently discards a second
+// presentation during that transition. Retain the picker and retry on the main
+// queue until the actual visible presenter is available.
+void present_import_picker_when_ready(UIDocumentPickerViewController *picker,
+                                      NSInteger retriesLeft = 40) {
+    perform_on_main(^{
+        UIWindow *window = g_library_controller.viewIfLoaded.window ?: active_window();
+        UIViewController *root = window.rootViewController;
+        UIViewController *presenter = document_picker_presenter();
+        BOOL busy = !window || !presenter || !presenter.isViewLoaded
+            || !presenter.view.window || presenter.isBeingDismissed
+            || presenter.isBeingPresented || presenter.transitionCoordinator
+            || root.presentedViewController != nil
+            || g_library_controller.presentedViewController != nil
+            || g_onboarding_controller.presentedViewController != nil;
+        if (busy && retriesLeft > 0) {
+            dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.1 * NSEC_PER_SEC)),
+                           dispatch_get_main_queue(), ^{
+                present_import_picker_when_ready(picker, retriesLeft - 1);
+            });
+            return;
+        }
+        if (busy) {
+            LOG_ERROR("iOS Files picker presentation blocked: no visible idle controller");
+            [TsubomiLibraryStateBridge showStatusMessage:
+                @"Could not open Files. Close other dialogs and try again."];
+            return;
+        }
+        [presenter presentViewController:picker animated:YES completion:nil];
+    });
+}
+
+void show_import_picker(UIDocumentPickerViewController *picker) {
+    // Let a SwiftUI Menu's dismissal complete before requesting another modal.
+    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.2 * NSEC_PER_SEC)),
+                   dispatch_get_main_queue(), ^{
+        present_import_picker_when_ready(picker);
+    });
 }
 
 UIDocumentPickerViewController *import_picker(NSArray<UTType *> *types) {
@@ -1219,9 +1271,6 @@ UIDocumentPickerViewController *import_picker(NSArray<UTType *> *types) {
 // Presents the Files picker for a game/firmware/license import. Attached to the
 // + button's UIMenu (games/firmware) and the post-install license prompt.
 void present_import_picker(BOOL firmware) {
-    UIViewController *presenter = document_picker_presenter();
-    if (!presenter)
-        return;
     if (!g_import_picker)
         g_import_picker = [[Vita3KImportPicker alloc] init];
     g_import_picker.kind = firmware ? Vita3KIOSFrontendActionKind::ImportFirmware
@@ -1245,13 +1294,10 @@ void present_import_picker(BOOL firmware) {
     UIDocumentPickerViewController *picker = import_picker(types);
     picker.delegate = g_import_picker;
     picker.allowsMultipleSelection = NO;
-    [presenter presentViewController:picker animated:YES completion:nil];
+    show_import_picker(picker);
 }
 
 void present_license_picker() {
-    UIViewController *presenter = document_picker_presenter();
-    if (!presenter)
-        return;
     if (!g_import_picker)
         g_import_picker = [[Vita3KImportPicker alloc] init];
     g_import_picker.kind = Vita3KIOSFrontendActionKind::ImportLicense;
@@ -1260,13 +1306,10 @@ void present_license_picker() {
     UIDocumentPickerViewController *picker = import_picker(@[UTTypeData]);
     picker.delegate = g_import_picker;
     picker.allowsMultipleSelection = NO;
-    [presenter presentViewController:picker animated:YES completion:nil];
+    show_import_picker(picker);
 }
 
 void present_save_picker(NSString *titleId) {
-    UIViewController *presenter = document_picker_presenter();
-    if (!presenter)
-        return;
     if (!g_import_picker)
         g_import_picker = [[Vita3KImportPicker alloc] init];
     g_import_picker.kind = Vita3KIOSFrontendActionKind::ImportSave;
@@ -1274,13 +1317,10 @@ void present_save_picker(NSString *titleId) {
     UIDocumentPickerViewController *picker = import_picker(@[UTTypeZIP, UTTypeData]);
     picker.delegate = g_import_picker;
     picker.allowsMultipleSelection = NO;
-    [presenter presentViewController:picker animated:YES completion:nil];
+    show_import_picker(picker);
 }
 
 void present_library_archive_picker() {
-    UIViewController *presenter = document_picker_presenter();
-    if (!presenter)
-        return;
     if (!g_import_picker)
         g_import_picker = [[Vita3KImportPicker alloc] init];
     g_import_picker.kind = Vita3KIOSFrontendActionKind::ImportLibraryArchive;
@@ -1288,7 +1328,7 @@ void present_library_archive_picker() {
     UIDocumentPickerViewController *picker = import_picker(@[UTTypeZIP, UTTypeData]);
     picker.delegate = g_import_picker;
     picker.allowsMultipleSelection = NO;
-    [presenter presentViewController:picker animated:YES completion:nil];
+    show_import_picker(picker);
 }
 
 } // namespace
