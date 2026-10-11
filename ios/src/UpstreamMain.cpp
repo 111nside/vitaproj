@@ -2034,12 +2034,22 @@ void start_library_archive_import(EmuEnvState &emuenv,
 
 void start_import(EmuEnvState &emuenv, const std::string &path, const bool firmware) {
     if (!firmware && !firmware_setup_complete(emuenv)) {
-        vita3k_ios_report_import_result(
-            "Install FONTPKG.PUP, PREINSTALL.PUP, and PSVUPDAT.PUP before importing games", false);
+        const char *reason = "Install FONTPKG.PUP, PREINSTALL.PUP, and PSVUPDAT.PUP before importing games";
+#if defined(VITA3K_MANIC_EMBEDDED)
+        if (manic_vita3k_host_mode() == 1)
+            manic_vita3k_record_import_result(reason, 0);
+        else
+#endif
+            vita3k_ios_report_import_result(reason, false);
         return;
     }
     if (g_import_job && !g_import_job->done.load()) {
-        vita3k_ios_report_import_result("Another import is still running", false);
+#if defined(VITA3K_MANIC_EMBEDDED)
+        if (manic_vita3k_host_mode() == 1)
+            manic_vita3k_record_import_result("Another import is still running", 0);
+        else
+#endif
+            vita3k_ios_report_import_result("Another import is still running", false);
         return;
     }
     auto job = std::make_shared<ImportJob>();
