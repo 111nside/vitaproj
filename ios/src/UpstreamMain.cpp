@@ -65,6 +65,9 @@
 #include <unistd.h>
 
 #include <vita3k_ios/NativeFrontend.h>
+#if defined(VITA3K_MANIC_EMBEDDED)
+#include <vita3k_ios/ManicRuntime.h>
+#endif
 #include <vita3k_ios/VirtualController.h>
 
 #include <algorithm>
@@ -2338,7 +2341,7 @@ std::optional<AppLaunchRequest> choose_boot_title(EmuEnvState &emuenv) {
             g_import_job.reset();
             if (rescan_apps && !was_firmware && !app::init_apps_list(emuenv))
                 LOG_ERROR("Failed to rescan apps list after import.");
-            if (rescan_apps || (success && refresh_library)) {
+            if (was_firmware || rescan_apps || (success && refresh_library)) {
                 games = native_games(emuenv);
                 vita3k_ios_update_library(games, native_settings(emuenv));
             }
@@ -2348,6 +2351,25 @@ std::optional<AppLaunchRequest> choose_boot_title(EmuEnvState &emuenv) {
             if (success && rescan_apps && !was_firmware)
                 maybe_prompt_license_import(emuenv, installed_applications);
         }
+
+#if defined(VITA3K_MANIC_EMBEDDED)
+        // Import from Manic's native Files picker. UIKit must show that picker
+        // before entering our nested SDL event loop; the core can safely
+        // install the staged app-owned copy once this loop starts.
+        if (!g_import_job) {
+            char queued_path[8192]{};
+            int queued_kind = 0;
+            const int next = manic_vita3k_take_import(
+                queued_path, sizeof(queued_path), &queued_kind);
+            if (next == 1) {
+                LOG_INFO("Starting XMB-selected Vita {} import",
+                    queued_kind == 1 ? "firmware" : "game");
+                start_import(emuenv, queued_path, queued_kind == 1);
+            } else if (next < 0) {
+                LOG_ERROR("Queued Manic Vita file path exceeds import buffer");
+            }
+        }
+#endif
 
         if (auto action = vita3k_ios_take_frontend_action()) {
             switch (action->kind) {
