@@ -2,6 +2,9 @@
 // Copyright (C) 2026 Vita3K team
 
 #include <vita3k_ios/NativeFrontend.h>
+#if defined(VITA3K_MANIC_EMBEDDED)
+#include <vita3k_ios/ManicRuntime.h>
+#endif
 #include <vita3k_ios/VirtualController.h>
 #include <util/log.h>
 
@@ -1534,6 +1537,12 @@ void vita3k_ios_show_library(const std::vector<Vita3KIOSGameEntry> &games,
         }
         publish_core_snapshot(gamesCopy, settingsCopy);
         [TsubomiLibraryStateBridge setJITAvailable:g_jit_available];
+#if defined(VITA3K_MANIC_EMBEDDED)
+        // A one-shot import intentionally has no interactive library actions;
+        // overlay a busy indicator until the native installer returns to XMB.
+        if (manic_vita3k_host_mode() == 1)
+            [TsubomiLibraryStateBridge setBusyMessage:@"Installing Vita files. Returning to XMB when finished…"];
+#endif
         NSUserDefaults *defaults = NSUserDefaults.standardUserDefaults;
 #if defined(VITA3K_MANIC_EMBEDDED)
         // The embedded frontend is serviced by a nested SDL/UIKit run loop.
