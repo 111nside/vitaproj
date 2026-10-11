@@ -318,6 +318,13 @@ struct OnboardingView: View {
                     .disabled(true)
             }
 
+            if UserDefaults.standard.bool(forKey: "tsubomi.manichosted") {
+                Button("Return to XMB to import files") {
+                    Bridge.returnToManic()
+                }
+                .buttonStyle(.bordered)
+                .font(.footnote)
+            }
             progressDots
         }
         .controlSize(.large)
