@@ -43,6 +43,12 @@ int manic_vita3k_take_title(char *title_id, size_t capacity);
 // Number of staged files waiting for the next installation run.
 int manic_vita3k_pending_import_count(void);
 
+// Install outcome reported by the embedded core and shown by Manic after
+// control has returned to its normal UIKit event loop.
+void manic_vita3k_record_import_result(const char *message, int success);
+int manic_vita3k_last_import_ok(void);
+int manic_vita3k_copy_import_result(char *message, size_t capacity);
+
 // Nonzero while the embedded runtime is active.
 int manic_vita3k_is_running(void);
 
