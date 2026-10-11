@@ -154,7 +154,7 @@ extern "C" void manic_vita3k_record_import_result(const char *message, int succe
         g_import_result_ok = 1;
     if (message && *message) {
         if (!g_import_result_message.empty())
-            g_import_result_message += "\\n";
+            g_import_result_message += "\n";
         g_import_result_message += message;
     }
 }
@@ -170,7 +170,7 @@ extern "C" int manic_vita3k_copy_import_result(char *message, size_t capacity) {
     std::lock_guard<std::mutex> lock(g_import_result_mutex);
     const size_t n = std::min(g_import_result_message.size(), capacity - 1);
     std::memcpy(message, g_import_result_message.data(), n);
-    message[n] = '\\0';
+    message[n] = '\0';
     return static_cast<int>(n);
 }
 
