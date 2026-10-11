@@ -28,6 +28,21 @@ int manic_vita3k_enqueue_import(const char *path, int kind);
 // too small (the queued entry is preserved).
 int manic_vita3k_take_import(char *path, size_t capacity, int *kind);
 
+// Run the embedded core as a short installation job (1), a direct title
+// session (2), or its legacy internal library (0). The XMB host owns library
+// navigation so UIKit can complete button and document-picker transactions.
+// Must be configured before manic_vita3k_run on the main thread.
+void manic_vita3k_set_host_mode(int mode);
+int manic_vita3k_host_mode(void);
+
+// Select a game by installed Vita title ID before a direct-title run.
+// Returns 1 for a safe queued identifier; 0 for an invalid identifier.
+int manic_vita3k_queue_title(const char *title_id);
+int manic_vita3k_take_title(char *title_id, size_t capacity);
+
+// Number of staged files waiting for the next installation run.
+int manic_vita3k_pending_import_count(void);
+
 // Nonzero while the embedded runtime is active.
 int manic_vita3k_is_running(void);
 
