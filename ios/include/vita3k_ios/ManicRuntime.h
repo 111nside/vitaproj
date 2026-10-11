@@ -15,6 +15,11 @@ extern "C" {
 // normal exit; a negative value on initialization or threading failure.
 int manic_vita3k_run(void);
 
+// Keep the original Manic UIWindow available so direct game sessions restore
+// normal XMB touch input after SDL destroys its temporary window.
+void manic_vita3k_capture_host_window(void);
+void manic_vita3k_restore_host_window(void);
+
 // Requests graceful termination of the current Vita session/library.
 void manic_vita3k_request_exit(void);
 
