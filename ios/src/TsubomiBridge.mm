@@ -343,6 +343,12 @@ id bridge_games() {
     vita3k_ios_internal::present_firmware_picker();
 }
 
++ (void)returnToManic {
+    Vita3KIOSFrontendAction action;
+    action.kind = Vita3KIOSFrontendActionKind::Quit;
+    vita3k_ios_internal::queue_frontend_action(std::move(action));
+}
+
 + (void)importFirmwareFileAtURL:(NSURL *)url {
     vita3k_ios_internal::import_firmware_url(url);
 }
