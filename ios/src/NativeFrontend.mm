@@ -1517,7 +1517,14 @@ void vita3k_ios_show_library(const std::vector<Vita3KIOSGameEntry> &games,
 #endif
         [host layoutIfNeeded];
         library_view().hidden = NO;
+#if defined(VITA3K_MANIC_EMBEDDED)
+        // A UIView transform on the entire SwiftUI host relies on the outer
+        // UIKit transaction completing. Avoid a permanently half-transitioned
+        // root view in Manic's nested-run-loop embedding.
+        const BOOL animateLaunchIntro = NO;
+#else
         const BOOL animateLaunchIntro = playLaunchIntro && !UIAccessibilityIsReduceMotionEnabled();
+#endif
         if (animateLaunchIntro) {
             // Cold app launch dropped the library on screen with no
             // transition at all. A short fade + gentle scale-up reads as an
@@ -2044,6 +2051,16 @@ void vita3k_ios_pump_runloop(const double seconds) {
         // tracking/touch sources in this mode, not always the default mode.
         // Passing 0 runs a single pass without adding a second 50 ms delay.
         CFRunLoopRunInMode((__bridge CFStringRef)UITrackingRunLoopMode, 0, true);
+
+        // Manic enters the embedded Vita3K runtime from an existing UIKit
+        // action. The outer UIApplication event callback therefore does not
+        // return while this synchronous SDL loop is running. SwiftUI can
+        // observe a tap and mutate @State, yet its next page does not become
+        // visible because the outer run-loop's Core Animation transaction
+        // has not reached its normal commit point. Commit the pending layer
+        // updates after each nested loop pass rather than waiting for exit.
+        // This is embedded-only; standalone Tsubomi uses the normal loop.
+        [CATransaction flush];
 #endif
     } else {
         [NSThread sleepForTimeInterval:seconds];
